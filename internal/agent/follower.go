@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"time"
 
@@ -66,17 +67,21 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	return reply, nil
 }
 
+// TODO: should stop when the process is not a follower.
 func checkElectionTimeout() {
 	lastReceived = time.Now()
 	ticker := time.NewTicker(time.Microsecond * 100)
+	r := rand.Intn(10)
 	for {
 		<-ticker.C
 		if vstate.role != Follower {
-			break
+			continue
 		}
-		if time.Since(lastReceived) > time.Second*electionTimeoutSec {
-			TransitionToCandidate()
-			break
+		if time.Since(lastReceived) > time.Second*time.Duration(electionTimeoutSec+r) {
+			log.Println("Election timeout detected.")
+			transitionToCandidate()
+			Election()
+			lastReceived = time.Now()
 		}
 	}
 }

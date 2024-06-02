@@ -11,6 +11,7 @@ import (
 )
 
 func Election() {
+	log.Println("Election start.")
 	pstate.votedFor = vstate.id
 	// TODO: save votedFor to drive.
 	voteResult := make(map[int32]bool)
@@ -64,8 +65,8 @@ func Election() {
 		}
 	}
 	if voteCount > len(addrs)/2 {
-		TransitionToLeader()
+		transitionToLeader()
 	} else {
-		TransitionToFollower()
+		transitionToFollower()
 	}
 }

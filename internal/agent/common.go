@@ -1,5 +1,7 @@
 package agent
 
+import "log"
+
 type Role int32
 
 const (
@@ -60,16 +62,19 @@ func init() {
 	}
 }
 
-func TransitionToLeader() {
+func transitionToLeader() {
+	log.Println("Transition to leader.")
 	vstate.role = Leader
 }
 
-func TransitionToFollower() {
+func transitionToFollower() {
+	log.Println("Transition to follower.")
 	vstate.role = Follower
 }
 
-func TransitionToCandidate() {
-	vstate.role = Follower
+func transitionToCandidate() {
+	log.Println("Transition to candidate.")
+	vstate.role = Candidate
 }
 
 func IsLeader() bool {
