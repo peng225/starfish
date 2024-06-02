@@ -49,7 +49,7 @@ func SendLog(logEntries []LogEntry) {
 			})
 		}
 		reply, err := client.AppendEntries(context.Background(), &sfrpc.AppendEntriesRequest{
-			Term:         pstate.term,
+			Term:         pstate.currentTerm,
 			LeaderID:     vstate.id,
 			PrevLogIndex: 0,
 			PrevLogTerm:  0,

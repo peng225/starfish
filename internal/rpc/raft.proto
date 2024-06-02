@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/peng225/starfish";
+option go_package = "github.com/peng225/internal/rpc";
 
 package starfish;
 
@@ -25,7 +25,7 @@ message AppendEntriesReply {
 
 message RequestVoteRequest {
   int64 term = 1;
-  int64 candidateID = 2;
+  int32 candidateID = 2;
   int64 lastLogIndex = 3;
   int64 lastLogTerm = 4;
 }

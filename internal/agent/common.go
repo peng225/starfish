@@ -17,9 +17,9 @@ type LogEntry struct {
 }
 
 type PersistentState struct {
-	term     int64
-	votedFor int32
-	log      []LogEntry
+	currentTerm int64
+	votedFor    int32
+	log         []LogEntry
 }
 
 type VolatileState struct {
@@ -42,9 +42,9 @@ func init() {
 		LockHolderID: -1,
 	}
 	pstate = PersistentState{
-		term:     0,
-		votedFor: 0,
-		log:      make([]LogEntry, 0),
+		currentTerm: 0,
+		votedFor:    0,
+		log:         make([]LogEntry, 0),
 	}
 	vstate = VolatileState{
 		id:          0,
@@ -64,7 +64,7 @@ func TransitionToLeader() {
 	vstate.role = Leader
 }
 
-func TransitionToFollowr() {
+func TransitionToFollower() {
 	vstate.role = Follower
 }
 

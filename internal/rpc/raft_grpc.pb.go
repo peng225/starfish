@@ -4,7 +4,7 @@
 // - protoc             v3.12.4
 // source: internal/rpc/raft.proto
 
-package starfish
+package rpc
 
 import (
 	context "context"
