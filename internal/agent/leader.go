@@ -78,6 +78,9 @@ func sendHeartBeat() {
 	ticker := time.NewTicker(time.Second)
 	for {
 		<-ticker.C
-		sendLog(nil)
+		// TODO: we may need a lock to check the current role.
+		if vstate.role == Leader {
+			sendLog(nil)
+		}
 	}
 }

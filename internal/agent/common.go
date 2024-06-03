@@ -81,7 +81,6 @@ func transitionToCandidate() {
 }
 
 func IsLeader() bool {
-	go sendHeartBeat()
 	return vstate.role == Leader
 }
 
@@ -91,4 +90,9 @@ func LeaderAddr() string {
 
 func LockHolderID() int32 {
 	return mstate.LockHolderID
+}
+
+func StartDaemons() {
+	go sendHeartBeat()
+	go checkElectionTimeout()
 }

@@ -24,8 +24,3 @@ func checkElectionTimeout() {
 		}
 	}
 }
-
-func StartFollower() {
-	// Start election timeout watcher.
-	go checkElectionTimeout()
-}
