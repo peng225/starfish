@@ -2,6 +2,7 @@ package server
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -49,7 +50,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			// Already has a lock.
 			break
 		}
-		if lockHandlerID != -1 {
+		if 0 < lockHandlerID {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -62,4 +63,55 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+func UnlockHandler(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if !agent.IsLeader() {
+		w.WriteHeader(http.StatusPermanentRedirect)
+		w.Header().Add("Location", agent.LeaderAddr())
+		return
+	}
+
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+	unlockRequestedID, err := strconv.ParseInt(string(body), 10, 32)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	lockHandlerID := agent.LockHolderID()
+	if unlockRequestedID < 0 {
+		log.Printf("Current lock holder's ID is %d, but unlock requested for ID %d.",
+			lockHandlerID, unlockRequestedID)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if unlockRequestedID != int64(lockHandlerID) {
+		log.Printf("Current lock holder's ID is %d, but unlock requested for ID %d.",
+			lockHandlerID, unlockRequestedID)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if unlockRequestedID < 0 {
+		log.Printf("Unlock requested for an invalid ID %d.", unlockRequestedID)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	logEntries := make([]agent.LogEntry, 1)
+	logEntries[0] = agent.LogEntry{
+		LockHolderID: agent.InvalidLockHolderID,
+	}
+	agent.SendLog(logEntries)
 }

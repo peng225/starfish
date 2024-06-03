@@ -8,6 +8,8 @@ const (
 	Follower Role = iota
 	Candidate
 	Leader
+
+	InvalidLockHolderID int32 = -1
 )
 
 type MainState struct {

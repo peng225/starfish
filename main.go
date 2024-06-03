@@ -29,5 +29,6 @@ func main() {
 	go agent.StartFollower(grpcPortOffset + id)
 
 	http.HandleFunc("/lock", server.LockHandler)
+	http.HandleFunc("/unlock", server.UnlockHandler)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(serverPort), nil))
 }
