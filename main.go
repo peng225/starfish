@@ -26,7 +26,8 @@ func main() {
 		log.Fatalf("grpcPortOffset must not be a well known port. grpcPortOffset = %d", grpcPortOffset)
 	}
 
-	go agent.StartFollower(grpcPortOffset + id)
+	go agent.StartFollower()
+	go agent.StartRPCServer(grpcPortOffset + id)
 
 	http.HandleFunc("/lock", server.LockHandler)
 	http.HandleFunc("/unlock", server.UnlockHandler)
