@@ -17,8 +17,10 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	if !agent.IsLeader() {
-		w.WriteHeader(http.StatusPermanentRedirect)
-		w.Header().Add("Location", agent.LeaderAddr())
+		// TODO: If this process is a candidate,
+		// we should return some errors like http.StatusServiceUnavailable.
+		// In that case, Retry-After header should be set.
+		http.Redirect(w, r, agent.LeaderAddr(), http.StatusPermanentRedirect)
 		return
 	}
 
@@ -70,8 +72,10 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	if !agent.IsLeader() {
-		w.WriteHeader(http.StatusPermanentRedirect)
-		w.Header().Add("Location", agent.LeaderAddr())
+		// TODO: If this process is a candidate,
+		// we should return some errors like http.StatusServiceUnavailable.
+		// In that case, Retry-After header should be set.
+		http.Redirect(w, r, agent.LeaderAddr(), http.StatusPermanentRedirect)
 		return
 	}
 
