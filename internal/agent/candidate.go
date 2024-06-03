@@ -7,7 +7,6 @@ import (
 	"time"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
-	"google.golang.org/grpc"
 )
 
 func Election() {
@@ -28,18 +27,8 @@ func Election() {
 				return
 			}
 			// Maybe I have to retry until the election timeout.
-			for i := 0; i < 3; i++ {
-				var opts []grpc.DialOption
-				conn, err := grpc.NewClient(addr, opts...)
-				if err != nil {
-					log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
-					continue
-				}
-				defer conn.Close()
-
-				client := sfrpc.NewRaftClient(conn)
-
-				reply, err := client.RequestVote(context.Background(), &sfrpc.RequestVoteRequest{
+			for j := 0; j < 3; j++ {
+				reply, err := rpcClients[i].RequestVote(context.Background(), &sfrpc.RequestVoteRequest{
 					Term:         pstate.currentTerm,
 					CandidateID:  vstate.id,
 					LastLogIndex: 0,

@@ -3,11 +3,10 @@ package agent
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
-
-	"google.golang.org/grpc"
 )
 
 type VolatileLeaderState struct {
@@ -38,40 +37,43 @@ func AppendLog(logEntries []LogEntry) {
 }
 
 func sendLog(logEntries []LogEntry) {
+	var wg sync.WaitGroup
+	wg.Add(len(addrs))
 	for i, addr := range addrs {
-		if i == int(vstate.id) {
-			continue
-		}
+		i := i
+		addr := addr
+		go func() {
+			defer wg.Done()
+			if i == int(vstate.id) {
+				return
+			}
 
-		var opts []grpc.DialOption
-		conn, err := grpc.NewClient(addr, opts...)
-		if err != nil {
-			log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
-			continue
-		}
-		defer conn.Close()
-
-		client := sfrpc.NewRaftClient(conn)
-		entries := make([]*sfrpc.LogEntry, 0)
-		for _, e := range logEntries {
-			entries = append(entries, &sfrpc.LogEntry{
-				LockHolderID: e.LockHolderID,
+			entries := make([]*sfrpc.LogEntry, 0)
+			for _, e := range logEntries {
+				entries = append(entries, &sfrpc.LogEntry{
+					LockHolderID: e.LockHolderID,
+				})
+			}
+			reply, err := rpcClients[i].AppendEntries(context.Background(), &sfrpc.AppendEntriesRequest{
+				Term:         pstate.currentTerm,
+				LeaderID:     vstate.id,
+				PrevLogIndex: 0,
+				PrevLogTerm:  0,
+				Entries:      entries,
+				LeaderCommit: vstate.commitIndex,
 			})
-		}
-		reply, err := client.AppendEntries(context.Background(), &sfrpc.AppendEntriesRequest{
-			Term:         pstate.currentTerm,
-			LeaderID:     vstate.id,
-			PrevLogIndex: 0,
-			PrevLogTerm:  0,
-			Entries:      entries,
-			LeaderCommit: vstate.commitIndex,
-		})
-		if err != nil {
-			log.Printf("AppendEntries RPC for %s failed. err: %s", addr, err.Error())
-			continue
-		}
-		log.Println(reply)
+			if err != nil {
+				log.Printf("AppendEntries RPC for %s failed. err: %s", addr, err.Error())
+				return
+			}
+			if !reply.Success {
+				log.Printf("AppendEntries RPC for %s failed.", addr)
+				// TODO: maybe I need to check the term, and update the term and the role (to follower).
+				return
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 func sendHeartBeat() {

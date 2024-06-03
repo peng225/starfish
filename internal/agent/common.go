@@ -1,6 +1,11 @@
 package agent
 
-import "log"
+import (
+	"log"
+
+	sfrpc "github.com/peng225/starfish/internal/rpc"
+	"google.golang.org/grpc"
+)
 
 type Role int32
 
@@ -39,7 +44,8 @@ var (
 	pstate PersistentState
 	vstate VolatileState
 
-	addrs []string
+	addrs      []string
+	rpcClients []sfrpc.RaftClient
 )
 
 func init() {
@@ -62,6 +68,18 @@ func init() {
 		"localhost:8080",
 		"localhost:8081",
 		"localhost:8082",
+	}
+
+	for _, addr := range addrs {
+		var opts []grpc.DialOption
+		conn, err := grpc.NewClient(addr, opts...)
+		if err != nil {
+			log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
+			return
+		}
+		defer conn.Close()
+
+		rpcClients = append(rpcClients, sfrpc.NewRaftClient(conn))
 	}
 }
 
