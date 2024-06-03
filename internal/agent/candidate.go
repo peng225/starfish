@@ -13,6 +13,7 @@ import (
 func Election() {
 	log.Println("Election start.")
 	pstate.votedFor = vstate.id
+	pstate.currentTerm++
 	// TODO: save votedFor to drive.
 	voteResult := make(map[int32]bool)
 	voteResult[vstate.id] = true

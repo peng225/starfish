@@ -17,6 +17,7 @@ type MainState struct {
 }
 
 type LogEntry struct {
+	Term         int64
 	LockHolderID int32
 }
 

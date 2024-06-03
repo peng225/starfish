@@ -22,12 +22,22 @@ var (
 func init() {
 	vlstate = VolatileLeaderState{
 		// FIXME: The number of agents is fixed to 3.
-		nextIndex:  make([]int64, 2),
-		matchIndex: make([]int64, 2),
+		nextIndex:  make([]int64, 3),
+		matchIndex: make([]int64, 3),
 	}
 }
 
-func SendLog(logEntries []LogEntry) {
+func AppendLog(logEntries []LogEntry) {
+	for i := 0; i < len(logEntries); i++ {
+		logEntries[i].Term = pstate.currentTerm
+	}
+	pstate.log = append(pstate.log, logEntries...)
+	// TODO: save to disk
+
+	sendLog(logEntries)
+}
+
+func sendLog(logEntries []LogEntry) {
 	for i, addr := range addrs {
 		if i == int(vstate.id) {
 			continue
@@ -68,6 +78,6 @@ func sendHeartBeat() {
 	ticker := time.NewTicker(time.Second)
 	for {
 		<-ticker.C
-		SendLog(nil)
+		sendLog(nil)
 	}
 }

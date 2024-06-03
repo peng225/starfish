@@ -60,7 +60,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		logEntries[0] = agent.LogEntry{
 			LockHolderID: int32(lockRequestedID),
 		}
-		agent.SendLog(logEntries)
+		agent.AppendLog(logEntries)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -117,5 +117,5 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	logEntries[0] = agent.LogEntry{
 		LockHolderID: agent.InvalidLockHolderID,
 	}
-	agent.SendLog(logEntries)
+	agent.AppendLog(logEntries)
 }
