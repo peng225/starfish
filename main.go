@@ -13,12 +13,20 @@ import (
 func main() {
 	var id int
 	var serverPort int
+	var grpcPortOffset int
 	flag.IntVar(&id, "id", -1, "Agent ID")
 	flag.IntVar(&serverPort, "port", 10080, "Server port number")
+	flag.IntVar(&grpcPortOffset, "grpc-port-offset", 8080, "The offset of port numbers for gRPC")
 	flag.Parse()
 
-	// TODO: set correct port.
-	go agent.StartFollower(8080)
+	if id < 0 {
+		log.Fatalf("id must not be a negative number. id = %d", id)
+	}
+	if grpcPortOffset < 1024 {
+		log.Fatalf("grpcPortOffset must not be a well known port. grpcPortOffset = %d", grpcPortOffset)
+	}
+
+	go agent.StartFollower(grpcPortOffset + id)
 
 	http.HandleFunc("/lock", server.LockHandler)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(serverPort), nil))
