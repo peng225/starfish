@@ -26,6 +26,7 @@ func main() {
 		log.Fatalf("grpcPortOffset must not be a well known port. grpcPortOffset = %d", grpcPortOffset)
 	}
 
+	agent.Init(int32(id))
 	go agent.StartDaemons()
 	go agent.StartRPCServer(grpcPortOffset + id)
 

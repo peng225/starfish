@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -20,7 +21,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		// TODO: If this process is a candidate,
 		// we should return some errors like http.StatusServiceUnavailable.
 		// In that case, Retry-After header should be set.
-		http.Redirect(w, r, agent.LeaderAddr(), http.StatusPermanentRedirect)
+		http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -56,11 +57,14 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
-		logEntries := make([]agent.LogEntry, 1)
-		logEntries[0] = agent.LogEntry{
+		logEntry := agent.LogEntry{
 			LockHolderID: int32(lockRequestedID),
 		}
-		agent.AppendLog(logEntries)
+		err = agent.AppendLog(&logEntry)
+		if errors.Is(err, agent.DemotedToFollower) {
+			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+			return
+		}
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -75,7 +79,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		// TODO: If this process is a candidate,
 		// we should return some errors like http.StatusServiceUnavailable.
 		// In that case, Retry-After header should be set.
-		http.Redirect(w, r, agent.LeaderAddr(), http.StatusPermanentRedirect)
+		http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -113,9 +117,12 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	logEntries := make([]agent.LogEntry, 1)
-	logEntries[0] = agent.LogEntry{
+	logEntry := agent.LogEntry{
 		LockHolderID: agent.InvalidLockHolderID,
 	}
-	agent.AppendLog(logEntries)
+	err = agent.AppendLog(&logEntry)
+	if errors.Is(err, agent.DemotedToFollower) {
+		http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+		return
+	}
 }

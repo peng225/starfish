@@ -2,61 +2,74 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"log"
-	"sync"
+	"math/rand"
 	"time"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
 )
 
-func Election() {
-	log.Println("Election start.")
-	pstate.votedFor = vstate.id
-	pstate.currentTerm++
-	// TODO: save votedFor to drive.
-	voteResult := make(map[int32]bool)
-	voteResult[vstate.id] = true
-	var wg sync.WaitGroup
-	wg.Add(len(addrs))
-	for i, addr := range addrs {
-		i := i
-		addr := addr
-		go func() {
-			defer wg.Done()
-			if i == int(vstate.id) {
-				return
-			}
-			// Maybe I have to retry until the election timeout.
-			for j := 0; j < 3; j++ {
-				reply, err := rpcClients[i].RequestVote(context.Background(), &sfrpc.RequestVoteRequest{
+func election() {
+	for {
+		if vstate.role == Follower {
+			log.Println("Found that I have become a follower.")
+			return
+		}
+		log.Println("Election start.")
+		electionTimeoutBase = time.Now()
+		pstate.votedFor = vstate.id
+		pstate.currentTerm++
+		// TODO: save votedFor to drive.
+		voteResult := make(chan bool, len(addrs))
+		ctx, cancel := context.WithCancelCause(context.Background())
+		for i := range addrs {
+			i := i
+			go func() {
+				if i == int(vstate.id) {
+					voteResult <- true
+					return
+				}
+				reply, err := rpcClients[i].RequestVote(ctx, &sfrpc.RequestVoteRequest{
 					Term:         pstate.currentTerm,
 					CandidateID:  vstate.id,
 					LastLogIndex: 0,
 					LastLogTerm:  0,
 				})
 				if err != nil {
-					log.Printf("AppendEntries RPC for %s failed. err: %s", addr, err.Error())
-					continue
-				}
-				if reply.VoteGranted {
-					voteResult[int32(i)] = true
+					log.Printf("RequestVote RPC for %s failed. err: %s", addrs[i], err.Error())
+					voteResult <- false
 					return
 				}
-				time.Sleep(time.Microsecond * 100)
-			}
-		}()
-	}
-	wg.Wait()
-
-	voteCount := 0
-	for _, v := range voteResult {
-		if v {
-			voteCount++
+				if reply.Term > pstate.currentTerm {
+					log.Printf("Found larger term in the response of RequestVote RPC for %s. term: %d, response term: %d",
+						addrs[i], pstate.currentTerm, reply.Term)
+					cancel(DemotedToFollower)
+					transitionToFollower(reply.Term)
+				}
+				voteResult <- reply.VoteGranted
+			}()
 		}
-	}
-	if voteCount > len(addrs)/2 {
-		transitionToLeader()
-	} else {
-		transitionToFollower()
+
+		voteCount := 0
+		r := time.Duration(rand.Intn(10)) * time.Second
+	WaitForVote:
+		for {
+			select {
+			case <-time.After(electionTimeoutSec + r):
+				log.Println("Election timeout!")
+				cancel(errors.New("election timeout"))
+				break WaitForVote
+			case res := <-voteResult:
+				if res {
+					voteCount++
+					log.Println("Got a vote.")
+					if voteCount > len(addrs)/2 {
+						transitionToLeader()
+						return
+					}
+				}
+			}
+		}
 	}
 }

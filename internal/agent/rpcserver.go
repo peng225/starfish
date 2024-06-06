@@ -16,11 +16,11 @@ type RaftServerImpl struct {
 }
 
 const (
-	electionTimeoutSec = 2
+	electionTimeoutSec = 2 * time.Second
 )
 
 var (
-	lastReceived time.Time
+	electionTimeoutBase time.Time
 )
 
 func newRaftServer() *RaftServerImpl {
@@ -29,7 +29,7 @@ func newRaftServer() *RaftServerImpl {
 
 func StartRPCServer(port int) {
 	// Start gRPC server.
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -40,31 +40,43 @@ func StartRPCServer(port int) {
 }
 
 func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendEntriesRequest) (*sfrpc.AppendEntriesReply, error) {
-	lastReceived = time.Now()
+	electionTimeoutBase = time.Now()
 	reply := &sfrpc.AppendEntriesReply{
 		Term:    pstate.currentTerm,
 		Success: false,
 	}
-	if req.Term < pstate.currentTerm {
+	switch {
+	case req.Term < pstate.currentTerm:
 		return reply, nil
+	case req.Term == pstate.currentTerm:
+		if vstate.role == Candidate {
+			transitionToFollower(req.Term)
+		}
+	case req.Term > pstate.currentTerm:
+		transitionToFollower(req.Term)
 	}
 	// TODO: implement
-	reply.Success = false
+	reply.Success = true
 	return reply, nil
 }
 func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVoteRequest) (*sfrpc.RequestVoteReply, error) {
-	lastReceived = time.Now()
 	reply := &sfrpc.RequestVoteReply{
 		Term:        pstate.currentTerm,
 		VoteGranted: false,
 	}
-	if req.Term < pstate.currentTerm {
+	switch {
+	case req.Term < pstate.currentTerm:
 		return reply, nil
+	case req.Term > pstate.currentTerm:
+		transitionToFollower(req.Term)
+	default:
 	}
 	if pstate.votedFor >= 0 && req.CandidateID != pstate.votedFor {
 		return reply, nil
 	}
 	// TODO: implement
-	reply.VoteGranted = false
+	reply.VoteGranted = true
+	pstate.votedFor = req.CandidateID
+	// TODO: save to disk
 	return reply, nil
 }

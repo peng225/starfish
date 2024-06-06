@@ -8,19 +8,16 @@ import (
 
 // TODO: should stop when the process is not a follower.
 func checkElectionTimeout() {
-	lastReceived = time.Now()
+	electionTimeoutBase = time.Now()
 	ticker := time.NewTicker(time.Microsecond * 100)
-	r := rand.Intn(10)
+	r := time.Duration(rand.Intn(10)) * time.Second
 	for {
 		<-ticker.C
-		if vstate.role != Follower {
-			continue
-		}
-		if time.Since(lastReceived) > time.Second*time.Duration(electionTimeoutSec+r) {
+		if time.Since(electionTimeoutBase) > electionTimeoutSec+r {
 			log.Println("Election timeout detected.")
 			transitionToCandidate()
-			Election()
-			lastReceived = time.Now()
+			go election()
+			break
 		}
 	}
 }

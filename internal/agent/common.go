@@ -2,9 +2,11 @@ package agent
 
 import (
 	"log"
+	"sync"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Role int32
@@ -46,22 +48,24 @@ var (
 
 	addrs      []string
 	rpcClients []sfrpc.RaftClient
+
+	muStateTransition sync.Mutex
 )
 
 func init() {
 	mstate = MainState{
-		LockHolderID: -1,
+		LockHolderID: InvalidLockHolderID,
 	}
 	pstate = PersistentState{
 		currentTerm: 0,
-		votedFor:    0,
+		votedFor:    -1,
 		log:         make([]LogEntry, 0),
 	}
 	vstate = VolatileState{
 		id:          0,
 		role:        Follower,
-		commitIndex: 0,
-		lastApplied: 0,
+		commitIndex: -1,
+		lastApplied: -1,
 	}
 
 	addrs = []string{
@@ -71,29 +75,50 @@ func init() {
 	}
 
 	for _, addr := range addrs {
-		var opts []grpc.DialOption
-		conn, err := grpc.NewClient(addr, opts...)
+		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
 			return
 		}
-		defer conn.Close()
 
 		rpcClients = append(rpcClients, sfrpc.NewRaftClient(conn))
 	}
 }
 
-func transitionToLeader() {
-	log.Println("Transition to leader.")
-	vstate.role = Leader
+func Init(id int32) {
+	vstate.id = id
 }
 
-func transitionToFollower() {
+func transitionToLeader() {
+	muStateTransition.Lock()
+	defer muStateTransition.Unlock()
+	if vstate.role == Leader {
+		return
+	}
+	log.Println("Transition to leader.")
+	vstate.role = Leader
+	go sendHeartBeat()
+}
+
+func transitionToFollower(term int64) {
+	muStateTransition.Lock()
+	defer muStateTransition.Unlock()
+	if vstate.role == Follower {
+		return
+	}
 	log.Println("Transition to follower.")
+	// TODO: save to disk
+	pstate.currentTerm = term
 	vstate.role = Follower
+	go checkElectionTimeout()
 }
 
 func transitionToCandidate() {
+	muStateTransition.Lock()
+	defer muStateTransition.Unlock()
+	if vstate.role == Candidate {
+		return
+	}
 	log.Println("Transition to candidate.")
 	vstate.role = Candidate
 }
