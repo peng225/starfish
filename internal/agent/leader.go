@@ -14,9 +14,22 @@ type VolatileLeaderState struct {
 	matchIndex []int64
 }
 
+type sendLogRequest struct {
+	ctx        context.Context
+	cancel     context.CancelCauseFunc
+	logEntries []LogEntry
+	errCh      chan error
+}
+
+const (
+	queueLength = 100000
+)
+
 var (
 	vlstate           VolatileLeaderState
 	DemotedToFollower error
+
+	sendLogQueue []chan sendLogRequest
 )
 
 func init() {
@@ -26,6 +39,7 @@ func init() {
 		matchIndex: make([]int64, 3),
 	}
 	DemotedToFollower = errors.New("demoted to the follower")
+	sendLogQueue = make([]chan sendLogRequest, queueLength)
 }
 
 func AppendLog(logEntry *LogEntry) error {
@@ -33,7 +47,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
 
-	errCh := sendLogToAllWithRetry(logEntry)
+	errCh := sendLogToDaemon(logEntry)
 	for i := 0; i < len(addrs)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -47,30 +61,20 @@ func AppendLog(logEntry *LogEntry) error {
 	return nil
 }
 
-func sendLogToAllWithRetry(logEntry *LogEntry) chan error {
+func sendLogToDaemon(logEntry *LogEntry) chan error {
 	errCh := make(chan error, len(addrs)-1)
+	ctx, cancel := context.WithCancelCause(context.Background())
 	for i := range addrs {
 		i := i
-		ctx, cancel := context.WithCancelCause(context.Background())
-		go func() {
-			for {
-				if i == int(vstate.id) {
-					return
-				}
-				err := sendLog(ctx, int32(i), []LogEntry{*logEntry})
-				if errors.Is(err, DemotedToFollower) {
-					log.Println("Demoted to the follower.")
-					cancel(DemotedToFollower)
-					errCh <- DemotedToFollower
-					break
-				} else if err != nil {
-					time.Sleep(time.Millisecond * 100)
-					continue
-				}
-				errCh <- nil
-				break
-			}
-		}()
+		if i == int(vstate.id) {
+			continue
+		}
+		sendLogQueue[i] <- sendLogRequest{
+			ctx:        ctx,
+			cancel:     cancel,
+			logEntries: []LogEntry{*logEntry},
+			errCh:      errCh,
+		}
 	}
 	return errCh
 }
@@ -102,6 +106,27 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 		}
 	}
 	return nil
+}
+
+func sendLogDaemon(destID int32) {
+	for {
+		req := <-sendLogQueue[destID]
+		for {
+			err := sendLog(req.ctx, destID, req.logEntries)
+			if err != nil {
+				if errors.Is(err, DemotedToFollower) {
+					log.Println("Demoted to the follower.")
+					req.cancel(DemotedToFollower)
+					req.errCh <- err
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			req.errCh <- nil
+			break
+		}
+	}
 }
 
 func sendHeartBeat() {

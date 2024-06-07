@@ -140,5 +140,9 @@ func LockHolderID() int32 {
 }
 
 func StartDaemons() {
+	for i := range addrs {
+		i := i
+		go sendLogDaemon(int32(i))
+	}
 	go checkElectionTimeout()
 }
