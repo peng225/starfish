@@ -125,11 +125,15 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 			LockHolderID: e.LockHolderID,
 		})
 	}
+	plt := int64(-1)
+	if vlstate.nextIndex[destID] > 0 {
+		plt = pstate.log[vlstate.nextIndex[destID]-1].Term
+	}
 	reply, err := rpcClients[destID].AppendEntries(ctx, &sfrpc.AppendEntriesRequest{
 		Term:         pstate.currentTerm,
 		LeaderID:     vstate.id,
 		PrevLogIndex: vlstate.nextIndex[destID] - 1,
-		PrevLogTerm:  pstate.log[vlstate.nextIndex[destID]-1].Term,
+		PrevLogTerm:  plt,
 		Entries:      entries,
 		LeaderCommit: vstate.commitIndex,
 	})

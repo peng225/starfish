@@ -30,11 +30,15 @@ func election() {
 					voteResult <- true
 					return
 				}
+				llt := int64(-1)
+				if len(pstate.log) > 0 {
+					llt = pstate.log[len(pstate.log)-1].Term
+				}
 				reply, err := rpcClients[i].RequestVote(ctx, &sfrpc.RequestVoteRequest{
 					Term:         pstate.currentTerm,
 					CandidateID:  vstate.id,
-					LastLogIndex: 0,
-					LastLogTerm:  0,
+					LastLogIndex: int64(len(pstate.log)) - 1,
+					LastLogTerm:  llt,
 				})
 				if err != nil {
 					log.Printf("RequestVote RPC for %s failed. err: %s", addrs[i], err.Error())

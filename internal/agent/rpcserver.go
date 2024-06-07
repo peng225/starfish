@@ -58,7 +58,7 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	pstate.currentTerm = reply.Term
 
 	if int64(len(pstate.log)-1) < req.PrevLogIndex ||
-		pstate.log[req.PrevLogIndex].Term != req.Term {
+		(req.PrevLogIndex > 0 && pstate.log[req.PrevLogIndex].Term != req.PrevLogTerm) {
 		return reply, nil
 	}
 
@@ -96,13 +96,24 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	case req.Term > pstate.currentTerm:
 		pstate.votedFor = InvalidAgentID
 		// TODO: save to disk
-		transitionToFollower(req.Term)
+		transitionToFollower()
 	default:
 	}
+	pstate.currentTerm = reply.Term
+
 	if pstate.votedFor >= 0 && req.CandidateID != pstate.votedFor {
 		return reply, nil
 	}
-	// TODO: implement
+	llt := int64(-1)
+	if len(pstate.log) > 0 {
+		llt = pstate.log[len(pstate.log)-1].Term
+	}
+	if req.LastLogTerm < llt ||
+		(req.LastLogTerm == llt &&
+			req.LastLogIndex < int64(len(pstate.log))-1) {
+		return reply, nil
+	}
+
 	reply.VoteGranted = true
 	pstate.votedFor = req.CandidateID
 	// TODO: save to disk
