@@ -50,12 +50,37 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		return reply, nil
 	case req.Term == pstate.currentTerm:
 		if vstate.role == Candidate {
-			transitionToFollower(req.Term)
+			transitionToFollower()
 		}
 	case req.Term > pstate.currentTerm:
-		transitionToFollower(req.Term)
+		transitionToFollower()
 	}
-	// TODO: implement
+	pstate.currentTerm = reply.Term
+
+	if int64(len(pstate.log)-1) < req.PrevLogIndex ||
+		pstate.log[req.PrevLogIndex].Term != req.Term {
+		return reply, nil
+	}
+
+	for i, entry := range req.Entries {
+		entryIndex := req.PrevLogIndex + int64(i) + 1
+		if entryIndex < int64(len(pstate.log)-1) &&
+			pstate.log[entryIndex].Term != req.Term {
+			pstate.log = pstate.log[:entryIndex]
+			break
+		}
+		if int64(len(pstate.log)-1) < entryIndex {
+			pstate.log = append(pstate.log, LogEntry{
+				Term:         req.Term,
+				LockHolderID: entry.LockHolderID,
+			})
+		}
+	}
+
+	if req.LeaderCommit > vstate.commitIndex {
+		vstate.commitIndex = min(req.LeaderCommit, int64(len(pstate.log)-1))
+	}
+
 	reply.Success = true
 	return reply, nil
 }

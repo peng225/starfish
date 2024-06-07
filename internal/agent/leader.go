@@ -15,10 +15,9 @@ type VolatileLeaderState struct {
 }
 
 type sendLogRequest struct {
-	ctx        context.Context
-	cancel     context.CancelCauseFunc
-	logEntries []LogEntry
-	errCh      chan error
+	ctx    context.Context
+	cancel context.CancelCauseFunc
+	errCh  chan error
 }
 
 const (
@@ -28,6 +27,7 @@ const (
 var (
 	vlstate           VolatileLeaderState
 	DemotedToFollower error
+	LogMismatch       error
 
 	sendLogQueue []chan sendLogRequest
 )
@@ -38,6 +38,12 @@ func init() {
 		nextIndex:  make([]int64, 3),
 		matchIndex: make([]int64, 3),
 	}
+	for i := 0; i < len(vlstate.nextIndex); i++ {
+		vlstate.nextIndex[i] = int64(len(pstate.log))
+	}
+	for i := 0; i < len(vlstate.matchIndex); i++ {
+		vlstate.matchIndex[i] = -1
+	}
 	DemotedToFollower = errors.New("demoted to the follower")
 	sendLogQueue = make([]chan sendLogRequest, queueLength)
 }
@@ -47,7 +53,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
 
-	errCh := sendLogToDaemon(logEntry)
+	errCh := sendLogToDaemon()
 	for i := 0; i < len(addrs)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -61,22 +67,55 @@ func AppendLog(logEntry *LogEntry) error {
 	return nil
 }
 
-func sendLogToDaemon(logEntry *LogEntry) chan error {
+func sendLogToDaemon() chan error {
 	errCh := make(chan error, len(addrs)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	for i := range addrs {
-		i := i
 		if i == int(vstate.id) {
 			continue
 		}
 		sendLogQueue[i] <- sendLogRequest{
-			ctx:        ctx,
-			cancel:     cancel,
-			logEntries: []LogEntry{*logEntry},
-			errCh:      errCh,
+			ctx:    ctx,
+			cancel: cancel,
+			errCh:  errCh,
 		}
 	}
 	return errCh
+}
+
+func sendLogDaemon(destID int32) {
+	for {
+		req := <-sendLogQueue[destID]
+		err := sendLogWithRetry(req.ctx, req.cancel, destID, req.errCh)
+		if err != nil {
+			if !errors.Is(err, DemotedToFollower) {
+				log.Fatalf("Fatal error: %s", err)
+			}
+		}
+	}
+}
+
+func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32, errCh chan error) error {
+	originalNextIndex := vlstate.nextIndex[destID]
+	for vlstate.nextIndex[destID] <= originalNextIndex {
+		err := sendLog(ctx, destID,
+			[]LogEntry{pstate.log[vlstate.nextIndex[destID]]})
+		if err != nil {
+			if errors.Is(err, DemotedToFollower) {
+				log.Println("Demoted to the follower.")
+				cancel(DemotedToFollower)
+				errCh <- err
+				return err
+			} else if errors.Is(err, LogMismatch) {
+				vlstate.nextIndex[destID]--
+			}
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		vlstate.nextIndex[destID]++
+	}
+	errCh <- nil
+	return nil
 }
 
 func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
@@ -89,8 +128,8 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 	reply, err := rpcClients[destID].AppendEntries(ctx, &sfrpc.AppendEntriesRequest{
 		Term:         pstate.currentTerm,
 		LeaderID:     vstate.id,
-		PrevLogIndex: 0,
-		PrevLogTerm:  0,
+		PrevLogIndex: vlstate.nextIndex[destID] - 1,
+		PrevLogTerm:  pstate.log[vlstate.nextIndex[destID]-1].Term,
 		Entries:      entries,
 		LeaderCommit: vstate.commitIndex,
 	})
@@ -101,32 +140,13 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 	if !reply.Success {
 		log.Printf("AppendEntries RPC for %s failed.", addrs[destID])
 		if reply.Term > pstate.currentTerm {
-			transitionToFollower(reply.Term)
+			transitionToFollower()
+			pstate.currentTerm = reply.Term
 			return DemotedToFollower
 		}
+		return LogMismatch
 	}
 	return nil
-}
-
-func sendLogDaemon(destID int32) {
-	for {
-		req := <-sendLogQueue[destID]
-		for {
-			err := sendLog(req.ctx, destID, req.logEntries)
-			if err != nil {
-				if errors.Is(err, DemotedToFollower) {
-					log.Println("Demoted to the follower.")
-					req.cancel(DemotedToFollower)
-					req.errCh <- err
-					return
-				}
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			req.errCh <- nil
-			break
-		}
-	}
 }
 
 func sendHeartBeat() error {

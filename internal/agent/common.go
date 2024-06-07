@@ -106,15 +106,13 @@ func transitionToLeader() error {
 	return nil
 }
 
-func transitionToFollower(term int64) {
+func transitionToFollower() {
 	muStateTransition.Lock()
 	defer muStateTransition.Unlock()
 	if vstate.role == Follower {
 		return
 	}
 	log.Println("Transition to follower.")
-	// TODO: save to disk
-	pstate.currentTerm = term
 	vstate.role = Follower
 	go checkElectionTimeout()
 }

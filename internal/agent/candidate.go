@@ -45,7 +45,8 @@ func election() {
 					log.Printf("Found larger term in the response of RequestVote RPC for %s. term: %d, response term: %d",
 						addrs[i], pstate.currentTerm, reply.Term)
 					cancel(DemotedToFollower)
-					transitionToFollower(reply.Term)
+					transitionToFollower()
+					pstate.currentTerm = reply.Term
 				}
 				voteResult <- reply.VoteGranted
 			}()
