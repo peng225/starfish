@@ -90,15 +90,20 @@ func Init(id int32) {
 	vstate.id = id
 }
 
-func transitionToLeader() {
+func transitionToLeader() error {
 	muStateTransition.Lock()
 	defer muStateTransition.Unlock()
 	if vstate.role == Leader {
-		return
+		return nil
 	}
 	log.Println("Transition to leader.")
+	err := sendHeartBeat()
+	if err != nil {
+		return err
+	}
 	vstate.role = Leader
-	go sendHeartBeat()
+	go heartBeatDaemon()
+	return nil
 }
 
 func transitionToFollower(term int64) {

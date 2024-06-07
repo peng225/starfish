@@ -129,21 +129,30 @@ func sendLogDaemon(destID int32) {
 	}
 }
 
-func sendHeartBeat() {
+func sendHeartBeat() error {
+	for i := range addrs {
+		if i == int(vstate.id) {
+			continue
+		}
+		err := sendLog(context.Background(), int32(i), nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func heartBeatDaemon() {
 	ticker := time.NewTicker(time.Second)
-OutMost:
 	for {
 		<-ticker.C
-		// TODO: we may need a lock to check the current role.
 		if vstate.role != Leader {
 			break
 		}
-		for i := range addrs {
-			err := sendLog(context.Background(), int32(i), nil)
-			if errors.Is(err, DemotedToFollower) {
-				log.Println("Demoted to the follower.")
-				break OutMost
-			}
+		err := sendHeartBeat()
+		if err != nil && errors.Is(err, DemotedToFollower) {
+			log.Println("Demoted to the follower.")
+			break
 		}
 	}
 }
