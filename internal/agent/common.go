@@ -20,7 +20,7 @@ const (
 	InvalidAgentID            = -1
 )
 
-type MainState struct {
+type StateMachine struct {
 	LockHolderID int32
 }
 
@@ -43,7 +43,7 @@ type VolatileState struct {
 }
 
 var (
-	mstate MainState
+	sm     StateMachine
 	pstate PersistentState
 	vstate VolatileState
 
@@ -54,7 +54,7 @@ var (
 )
 
 func init() {
-	mstate = MainState{
+	sm = StateMachine{
 		LockHolderID: InvalidLockHolderID,
 	}
 	pstate = PersistentState{
@@ -139,7 +139,7 @@ func LeaderAddr() string {
 }
 
 func LockHolderID() int32 {
-	return mstate.LockHolderID
+	return sm.LockHolderID
 }
 
 func StartDaemons() {
