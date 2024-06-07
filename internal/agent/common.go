@@ -128,6 +128,9 @@ func IsLeader() bool {
 }
 
 func LeaderAddr() string {
+	if vstate.role == Candidate {
+		return ""
+	}
 	return addrs[pstate.votedFor]
 }
 
@@ -136,6 +139,5 @@ func LockHolderID() int32 {
 }
 
 func StartDaemons() {
-	go sendHeartBeat()
 	go checkElectionTimeout()
 }
