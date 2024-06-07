@@ -97,10 +97,11 @@ func transitionToLeader() error {
 		return nil
 	}
 	log.Println("Transition to leader.")
-	err := sendHeartBeat()
-	if err != nil {
-		return err
-	}
+	// TODO: how to handle the down agent?
+	// err := sendHeartBeat()
+	// if err != nil {
+	// 	return err
+	// }
 	vstate.role = Leader
 	go heartBeatDaemon()
 	return nil
@@ -145,6 +146,9 @@ func LockHolderID() int32 {
 func StartDaemons() {
 	for i := range addrs {
 		i := i
+		if int32(i) == vstate.id {
+			continue
+		}
 		go sendLogDaemon(int32(i))
 	}
 	go checkElectionTimeout()

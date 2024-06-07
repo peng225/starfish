@@ -72,8 +72,9 @@ func election() {
 					if voteCount > len(addrs)/2 {
 						err := transitionToLeader()
 						if err != nil {
-							log.Printf("Failed to promote to the leader. err: %s", err)
-							break WaitForVote
+							// TODO: What is the expectation?
+							// log.Printf("Failed to promote to the leader. err: %s", err)
+							// break WaitForVote
 						}
 						return
 					}

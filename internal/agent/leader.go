@@ -29,7 +29,7 @@ var (
 	DemotedToFollower error
 	LogMismatch       error
 
-	sendLogQueue []chan sendLogRequest
+	sendLogQueues []chan sendLogRequest
 )
 
 func init() {
@@ -45,10 +45,16 @@ func init() {
 		vlstate.matchIndex[i] = -1
 	}
 	DemotedToFollower = errors.New("demoted to the follower")
-	sendLogQueue = make([]chan sendLogRequest, queueLength)
+	LogMismatch = errors.New("log mismatch")
+	sendLogQueues = make([]chan sendLogRequest, len(addrs))
+	for i := 0; i < len(sendLogQueues); i++ {
+		sendLogQueues[i] = make(chan sendLogRequest, queueLength)
+	}
 }
 
 func AppendLog(logEntry *LogEntry) error {
+	log.Println("AppendLog start.")
+	defer log.Println("AppendLog end.")
 	logEntry.Term = pstate.currentTerm
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
@@ -74,7 +80,7 @@ func sendLogToDaemon() chan error {
 		if i == int(vstate.id) {
 			continue
 		}
-		sendLogQueue[i] <- sendLogRequest{
+		sendLogQueues[i] <- sendLogRequest{
 			ctx:    ctx,
 			cancel: cancel,
 			errCh:  errCh,
@@ -85,7 +91,8 @@ func sendLogToDaemon() chan error {
 
 func sendLogDaemon(destID int32) {
 	for {
-		req := <-sendLogQueue[destID]
+		req := <-sendLogQueues[destID]
+		log.Println("sendLogDaemon kicked.")
 		err := sendLogWithRetry(req.ctx, req.cancel, destID, req.errCh)
 		if err != nil {
 			if !errors.Is(err, DemotedToFollower) {

@@ -14,6 +14,8 @@ import (
 var mu sync.Mutex
 
 func LockHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("LockHandler start.")
+	defer log.Println("LockHandler end.")
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -74,6 +76,8 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UnlockHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("LockHandler start.")
+	defer log.Println("LockHandler end.")
 	mu.Lock()
 	defer mu.Unlock()
 

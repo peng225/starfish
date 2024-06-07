@@ -27,7 +27,7 @@ func main() {
 	}
 
 	agent.Init(int32(id))
-	go agent.StartDaemons()
+	agent.StartDaemons()
 	go agent.StartRPCServer(grpcPortOffset + id)
 
 	http.HandleFunc("/lock", web.LockHandler)
