@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/peng225/starfish/internal/agent"
-	"github.com/peng225/starfish/internal/server"
+	"github.com/peng225/starfish/internal/web"
 )
 
 func main() {
@@ -30,7 +30,7 @@ func main() {
 	go agent.StartDaemons()
 	go agent.StartRPCServer(grpcPortOffset + id)
 
-	http.HandleFunc("/lock", server.LockHandler)
-	http.HandleFunc("/unlock", server.UnlockHandler)
+	http.HandleFunc("/lock", web.LockHandler)
+	http.HandleFunc("/unlock", web.UnlockHandler)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(serverPort), nil))
 }

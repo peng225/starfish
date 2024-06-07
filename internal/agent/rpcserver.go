@@ -68,6 +68,8 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	case req.Term < pstate.currentTerm:
 		return reply, nil
 	case req.Term > pstate.currentTerm:
+		pstate.votedFor = InvalidAgentID
+		// TODO: save to disk
 		transitionToFollower(req.Term)
 	default:
 	}

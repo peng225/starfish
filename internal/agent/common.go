@@ -17,6 +17,7 @@ const (
 	Leader
 
 	InvalidLockHolderID int32 = -1
+	InvalidAgentID            = -1
 )
 
 type MainState struct {
@@ -58,7 +59,7 @@ func init() {
 	}
 	pstate = PersistentState{
 		currentTerm: 0,
-		votedFor:    -1,
+		votedFor:    InvalidAgentID,
 		log:         make([]LogEntry, 0),
 	}
 	vstate = VolatileState{
