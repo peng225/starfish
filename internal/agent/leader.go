@@ -185,8 +185,11 @@ func heartBeatDaemon() {
 		errCh := broadcastToDaemon(int64(len(pstate.log)))
 		for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 			err := <-errCh
-			if err != nil && errors.Is(err, DemotedToFollower) {
-				break
+			if err != nil {
+				if errors.Is(err, DemotedToFollower) {
+					break
+				}
+				log.Fatalf("Unexpected heartbeat error. err: %s", err)
 			}
 		}
 	}
