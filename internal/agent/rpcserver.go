@@ -45,6 +45,7 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		Term:    pstate.currentTerm,
 		Success: false,
 	}
+
 	switch {
 	case req.Term < pstate.currentTerm:
 		return reply, nil
@@ -57,6 +58,7 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	}
 	pstate.currentTerm = reply.Term
 
+	//Check the previous log entry match.
 	if int64(len(pstate.log)-1) < req.PrevLogIndex ||
 		(req.PrevLogIndex > 0 && pstate.log[req.PrevLogIndex].Term != req.PrevLogTerm) {
 		return reply, nil
@@ -64,16 +66,22 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 
 	for i, entry := range req.Entries {
 		entryIndex := req.PrevLogIndex + int64(i) + 1
-		if entryIndex < int64(len(pstate.log)-1) &&
+		// If the corresponding entry exists but does not have the same term,
+		// remove the mismatched entries.
+		if entryIndex <= int64(len(pstate.log)-1) &&
 			pstate.log[entryIndex].Term != req.Term {
 			pstate.log = pstate.log[:entryIndex]
 			break
 		}
-		if int64(len(pstate.log)-1) < entryIndex {
+		// If the entry does not exist, it is appended.
+		if int64(len(pstate.log)) == entryIndex {
 			pstate.log = append(pstate.log, LogEntry{
 				Term:         req.Term,
 				LockHolderID: entry.LockHolderID,
 			})
+		} else if int64(len(pstate.log)) < entryIndex {
+			log.Fatalf("Invalid entry index. len(pstate.log): %d, entryIndex: %d",
+				len(pstate.log), entryIndex)
 		}
 	}
 
