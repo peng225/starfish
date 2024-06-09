@@ -76,9 +76,7 @@ func AppendLog(logEntry *LogEntry) error {
 		}
 	}
 
-	vstate.commitIndex++
-	sm.LockHolderID = logEntry.LockHolderID
-	vstate.lastApplied++
+	updateCommitIndex(vstate.commitIndex + 1)
 	return nil
 }
 

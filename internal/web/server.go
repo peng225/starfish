@@ -40,6 +40,11 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	lockHandlerID := agent.LockHolderID()
 	switch r.Method {
 	case http.MethodGet:
+		if agent.PendingApplyLogExist() {
+			w.Header().Add("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		lhIDByte := []byte(strconv.FormatInt(int64(lockHandlerID), 10))
 		written := 0
 		for len(lhIDByte) != written {
@@ -103,6 +108,12 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodPut {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if agent.PendingApplyLogExist() {
+		w.Header().Add("Retry-After", "1")
+		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 

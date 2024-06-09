@@ -52,6 +52,8 @@ var (
 	rpcClients    []sfrpc.RaftClient
 
 	muStateTransition sync.Mutex
+
+	notifyLogApply chan struct{}
 )
 
 func init() {
@@ -69,6 +71,7 @@ func init() {
 		commitIndex: -1,
 		lastApplied: -1,
 	}
+	notifyLogApply = make(chan struct{}, 1)
 }
 
 func Init(id int32, ge []string) {
@@ -97,6 +100,7 @@ func Init(id int32, ge []string) {
 		go logSenderDaemon(int32(i))
 	}
 	go checkElectionTimeout()
+	go applierDaemon()
 }
 
 func transitionToLeader() error {
@@ -149,4 +153,35 @@ func LeaderID() int32 {
 
 func LockHolderID() int32 {
 	return sm.LockHolderID
+}
+
+func PendingApplyLogExist() bool {
+	return vstate.lastApplied < vstate.commitIndex
+}
+
+func updateCommitIndex(ci int64) {
+	vstate.commitIndex = ci
+	if len(notifyLogApply) == 0 {
+		notifyLogApply <- struct{}{}
+	}
+}
+
+func applyLog(logIndex int64) {
+	log := pstate.log[logIndex]
+	sm.LockHolderID = log.LockHolderID
+}
+
+func applierDaemon() {
+	for {
+		<-notifyLogApply
+		if vstate.lastApplied < vstate.commitIndex {
+			for logIndex := vstate.lastApplied + 1; logIndex <= vstate.commitIndex; logIndex++ {
+				applyLog(logIndex)
+				vstate.lastApplied++
+			}
+		} else if vstate.commitIndex < vstate.lastApplied {
+			log.Fatalf("invalid commit and last applied index. commitIndex: %d, lastApplied: %d",
+				vstate.commitIndex, vstate.lastApplied)
+		}
+	}
 }
