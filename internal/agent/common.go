@@ -94,7 +94,7 @@ func Init(id int32, ge []string) {
 		if int32(i) == vstate.id {
 			continue
 		}
-		go sendLogDaemon(int32(i))
+		go logSenderDaemon(int32(i))
 	}
 	go checkElectionTimeout()
 }
@@ -106,11 +106,7 @@ func transitionToLeader() error {
 		return nil
 	}
 	log.Printf("Transition to leader. term: %d", pstate.currentTerm)
-	// TODO: how to handle the down agent?
-	// err := sendHeartBeat()
-	// if err != nil {
-	// 	return err
-	// }
+	initLeaderOnPromotion()
 	vstate.role = Leader
 	go heartBeatDaemon()
 	return nil

@@ -43,6 +43,14 @@ func initLeader() {
 		nextIndex:  make([]int64, len(grpcEndpoints)),
 		matchIndex: make([]int64, len(grpcEndpoints)),
 	}
+
+	sendLogQueues = make([]chan sendLogRequest, len(grpcEndpoints))
+	for i := 0; i < len(sendLogQueues); i++ {
+		sendLogQueues[i] = make(chan sendLogRequest, queueLength)
+	}
+}
+
+func initLeaderOnPromotion() {
 	for i := 0; i < len(vlstate.nextIndex); i++ {
 		vlstate.nextIndex[i] = int64(len(pstate.log))
 	}
@@ -50,10 +58,7 @@ func initLeader() {
 		vlstate.matchIndex[i] = -1
 	}
 
-	sendLogQueues = make([]chan sendLogRequest, len(grpcEndpoints))
-	for i := 0; i < len(sendLogQueues); i++ {
-		sendLogQueues[i] = make(chan sendLogRequest, queueLength)
-	}
+	broadcastHeartBeat()
 }
 
 func AppendLog(logEntry *LogEntry) error {
@@ -63,7 +68,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
 
-	errCh := broadcastToDaemon(int64(len(pstate.log)))
+	errCh := broadcastToLogSenderDaemons(int64(len(pstate.log)))
 	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -77,7 +82,7 @@ func AppendLog(logEntry *LogEntry) error {
 	return nil
 }
 
-func broadcastToDaemon(endIndex int64) chan error {
+func broadcastToLogSenderDaemons(endIndex int64) chan error {
 	errCh := make(chan error, len(grpcEndpoints)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	for i := range grpcEndpoints {
@@ -94,7 +99,7 @@ func broadcastToDaemon(endIndex int64) chan error {
 	return errCh
 }
 
-func sendLogDaemon(destID int32) {
+func logSenderDaemon(destID int32) {
 	for {
 		req := <-sendLogQueues[destID]
 		err := sendLogWithRetry(req.ctx, req.cancel, destID,
@@ -175,6 +180,19 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	return nil
 }
 
+func broadcastHeartBeat() {
+	errCh := broadcastToLogSenderDaemons(int64(len(pstate.log)))
+	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
+		err := <-errCh
+		if err != nil {
+			if errors.Is(err, DemotedToFollower) {
+				break
+			}
+			log.Fatalf("Unexpected heartbeat error. err: %s", err)
+		}
+	}
+}
+
 func heartBeatDaemon() {
 	ticker := time.NewTicker(time.Second)
 	for {
@@ -182,15 +200,6 @@ func heartBeatDaemon() {
 		if vstate.role != Leader {
 			break
 		}
-		errCh := broadcastToDaemon(int64(len(pstate.log)))
-		for i := 0; i < len(grpcEndpoints)/2+1; i++ {
-			err := <-errCh
-			if err != nil {
-				if errors.Is(err, DemotedToFollower) {
-					break
-				}
-				log.Fatalf("Unexpected heartbeat error. err: %s", err)
-			}
-		}
+		broadcastHeartBeat()
 	}
 }
