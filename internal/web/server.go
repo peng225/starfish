@@ -90,8 +90,8 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UnlockHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("LockHandler start.")
-	defer log.Println("LockHandler end.")
+	log.Println("UnlockHandler start.")
+	defer log.Println("UnlockHandler end.")
 	mu.Lock()
 	defer mu.Unlock()
 
