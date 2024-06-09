@@ -12,7 +12,7 @@ func checkElectionTimeout() {
 	r := time.Duration(rand.Intn(10)) * time.Second
 	for {
 		<-ticker.C
-		if time.Since(electionTimeoutBase) > electionTimeoutSec+r {
+		if time.Since(electionTimeoutBase) > electionTimeout+r {
 			log.Println("Election timeout detected.")
 			transitionToCandidate()
 			go election()

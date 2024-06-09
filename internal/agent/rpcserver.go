@@ -16,7 +16,7 @@ type RaftServerImpl struct {
 }
 
 const (
-	electionTimeoutSec = 2 * time.Second
+	electionTimeout = 2 * time.Second
 )
 
 var (

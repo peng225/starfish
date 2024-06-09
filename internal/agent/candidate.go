@@ -61,7 +61,7 @@ func election() {
 	WaitForVote:
 		for {
 			select {
-			case <-time.After(electionTimeoutSec + r):
+			case <-time.After(electionTimeout + r):
 				log.Println("Election timeout!")
 				cancel(errors.New("election timeout"))
 				break WaitForVote
