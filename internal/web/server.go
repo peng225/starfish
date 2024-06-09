@@ -22,6 +22,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	if !agent.IsLeader() {
 		laddr := agent.LeaderAddr()
 		if laddr == "" {
+			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
 			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
@@ -84,6 +85,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	if !agent.IsLeader() {
 		laddr := agent.LeaderAddr()
 		if laddr == "" {
+			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
 			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
