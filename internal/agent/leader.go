@@ -15,9 +15,10 @@ type VolatileLeaderState struct {
 }
 
 type sendLogRequest struct {
-	ctx    context.Context
-	cancel context.CancelCauseFunc
-	errCh  chan error
+	ctx      context.Context
+	cancel   context.CancelCauseFunc
+	logIndex int64
+	errCh    chan error
 }
 
 const (
@@ -62,7 +63,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
 
-	errCh := sendLogToDaemon()
+	errCh := sendLogToDaemon(int64(len(pstate.log) - 1))
 	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -76,7 +77,7 @@ func AppendLog(logEntry *LogEntry) error {
 	return nil
 }
 
-func sendLogToDaemon() chan error {
+func sendLogToDaemon(logIndex int64) chan error {
 	errCh := make(chan error, len(grpcEndpoints)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	for i := range grpcEndpoints {
@@ -84,9 +85,10 @@ func sendLogToDaemon() chan error {
 			continue
 		}
 		sendLogQueues[i] <- sendLogRequest{
-			ctx:    ctx,
-			cancel: cancel,
-			errCh:  errCh,
+			ctx:      ctx,
+			cancel:   cancel,
+			logIndex: logIndex,
+			errCh:    errCh,
 		}
 	}
 	return errCh
@@ -96,7 +98,14 @@ func sendLogDaemon(destID int32) {
 	for {
 		req := <-sendLogQueues[destID]
 		log.Println("sendLogDaemon kicked.")
-		err := sendLogWithRetry(req.ctx, req.cancel, destID, req.errCh)
+		var err error
+		if req.logIndex == -1 {
+			err = sendHeatBeatWithRetry(req.ctx, req.cancel, destID,
+				req.errCh)
+		} else {
+			err = sendLogWithRetry(req.ctx, req.cancel, destID,
+				req.logIndex, req.errCh)
+		}
 		if err != nil {
 			if !errors.Is(err, DemotedToFollower) {
 				log.Fatalf("Fatal error: %s", err)
@@ -105,11 +114,10 @@ func sendLogDaemon(destID int32) {
 	}
 }
 
-func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32, errCh chan error) error {
-	originalNextIndex := vlstate.nextIndex[destID]
-	for vlstate.nextIndex[destID] <= originalNextIndex {
-		err := sendLog(ctx, destID,
-			[]LogEntry{pstate.log[vlstate.nextIndex[destID]]})
+func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32,
+	logIndex int64, errCh chan error) error {
+	for vlstate.nextIndex[destID] <= logIndex {
+		err := sendLog(ctx, destID, 1)
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {
 				log.Println("Demoted to the follower.")
@@ -119,18 +127,44 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destI
 			} else if errors.Is(err, LogMismatch) {
 				vlstate.nextIndex[destID]--
 			}
-			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		vlstate.nextIndex[destID]++
 	}
 	errCh <- nil
 	return nil
 }
 
-func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
+func sendHeatBeatWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32,
+	errCh chan error) error {
+	for {
+		err := sendLog(ctx, destID, 0)
+		if err != nil {
+			if errors.Is(err, DemotedToFollower) {
+				log.Println("Demoted to the follower.")
+				cancel(DemotedToFollower)
+				errCh <- err
+				return err
+			} else if errors.Is(err, LogMismatch) {
+				vlstate.nextIndex[destID]--
+			}
+			continue
+		}
+		break
+	}
+	errCh <- nil
+	return nil
+}
+
+// Send log entries to the destination denoted by 'destID.'
+// 'entryCount' represents the number of entries to be sent.
+// To-be-sent entries begin with the 'vlstate.nextIndex[destID]'-th log.
+func sendLog(ctx context.Context, destID int32, entryCount int64) error {
+	if entryCount < 0 {
+		log.Fatalf("entryCount must not be a negative number. entryCount: %d",
+			entryCount)
+	}
 	entries := make([]*sfrpc.LogEntry, 0)
-	for _, e := range logEntries {
+	for _, e := range pstate.log[vlstate.nextIndex[destID] : vlstate.nextIndex[destID]+entryCount] {
 		entries = append(entries, &sfrpc.LogEntry{
 			LockHolderID: e.LockHolderID,
 		})
@@ -160,19 +194,7 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 		}
 		return LogMismatch
 	}
-	return nil
-}
-
-func sendHeartBeat() error {
-	for i := range grpcEndpoints {
-		if i == int(vstate.id) {
-			continue
-		}
-		err := sendLog(context.Background(), int32(i), nil)
-		if err != nil {
-			return err
-		}
-	}
+	vlstate.nextIndex[destID] += entryCount
 	return nil
 }
 
@@ -183,10 +205,12 @@ func heartBeatDaemon() {
 		if vstate.role != Leader {
 			break
 		}
-		err := sendHeartBeat()
-		if err != nil && errors.Is(err, DemotedToFollower) {
-			log.Println("Demoted to the follower.")
-			break
+		errCh := sendLogToDaemon(-1)
+		for i := 0; i < len(grpcEndpoints)/2+1; i++ {
+			err := <-errCh
+			if err != nil && errors.Is(err, DemotedToFollower) {
+				break
+			}
 		}
 	}
 }
