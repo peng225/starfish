@@ -4,33 +4,65 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 
 	"github.com/peng225/starfish/internal/agent"
 	"github.com/peng225/starfish/internal/web"
+	"gopkg.in/yaml.v2"
 )
+
+type config struct {
+	WebEndpoints  []string `yaml:"webEndpoints"`
+	GRPCEndpoints []string `yaml:"grpcEndpoints"`
+}
+
+func getPort(endpoint string) int {
+	tokens := strings.Split(endpoint, ":")
+	if len(tokens) != 2 && len(tokens) != 3 {
+		log.Fatalf(`Invalid endpoint format "%s".`, endpoint)
+	}
+	port, err := strconv.Atoi(tokens[len(tokens)-1])
+	if err != nil {
+		log.Fatalf(`Failed to parse the gRPC port "%s". err: %s`,
+			tokens, err)
+	}
+	return port
+}
 
 func main() {
 	var id int
-	var serverPort int
-	var grpcPortOffset int
+	var configFileName string
 	flag.IntVar(&id, "id", -1, "Agent ID")
-	flag.IntVar(&serverPort, "port", 10080, "Server port number")
-	flag.IntVar(&grpcPortOffset, "grpc-port-offset", 8080, "The offset of port numbers for gRPC")
+	flag.StringVar(&configFileName, "config", "", "Config file name")
 	flag.Parse()
 
 	if id < 0 {
 		log.Fatalf("id must not be a negative number. id = %d", id)
 	}
-	if grpcPortOffset < 1024 {
-		log.Fatalf("grpcPortOffset must not be a well known port. grpcPortOffset = %d", grpcPortOffset)
+
+	data, err := os.ReadFile(configFileName)
+	if err != nil {
+		log.Fatalf(`Failed to open file "%s". err: %s`, configFileName, err)
+	}
+	c := config{}
+	err = yaml.Unmarshal(data, &c)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal the config file. err: %s", err)
 	}
 
-	agent.Init(int32(id))
-	agent.StartDaemons()
-	go agent.StartRPCServer(grpcPortOffset + id)
+	agent.Init(int32(id), c.GRPCEndpoints)
 
+	// Start gRPC server.
+	grpcPort := getPort(c.GRPCEndpoints[id])
+	go agent.StartRPCServer(grpcPort)
+
+	web.Init(c.WebEndpoints)
+
+	// Start web server.
 	http.HandleFunc("/lock", web.LockHandler)
 	http.HandleFunc("/unlock", web.UnlockHandler)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(serverPort), nil))
+	webPort := getPort(c.WebEndpoints[id])
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(webPort), nil))
 }

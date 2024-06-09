@@ -33,10 +33,14 @@ var (
 )
 
 func init() {
+	DemotedToFollower = errors.New("demoted to the follower")
+	LogMismatch = errors.New("log mismatch")
+}
+
+func initLeader() {
 	vlstate = VolatileLeaderState{
-		// FIXME: The number of agents is fixed to 3.
-		nextIndex:  make([]int64, 3),
-		matchIndex: make([]int64, 3),
+		nextIndex:  make([]int64, len(grpcEndpoints)),
+		matchIndex: make([]int64, len(grpcEndpoints)),
 	}
 	for i := 0; i < len(vlstate.nextIndex); i++ {
 		vlstate.nextIndex[i] = int64(len(pstate.log))
@@ -44,9 +48,8 @@ func init() {
 	for i := 0; i < len(vlstate.matchIndex); i++ {
 		vlstate.matchIndex[i] = -1
 	}
-	DemotedToFollower = errors.New("demoted to the follower")
-	LogMismatch = errors.New("log mismatch")
-	sendLogQueues = make([]chan sendLogRequest, len(addrs))
+
+	sendLogQueues = make([]chan sendLogRequest, len(grpcEndpoints))
 	for i := 0; i < len(sendLogQueues); i++ {
 		sendLogQueues[i] = make(chan sendLogRequest, queueLength)
 	}
@@ -60,7 +63,7 @@ func AppendLog(logEntry *LogEntry) error {
 	// TODO: save to disk
 
 	errCh := sendLogToDaemon()
-	for i := 0; i < len(addrs)/2+1; i++ {
+	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
 			return err
@@ -74,9 +77,9 @@ func AppendLog(logEntry *LogEntry) error {
 }
 
 func sendLogToDaemon() chan error {
-	errCh := make(chan error, len(addrs)-1)
+	errCh := make(chan error, len(grpcEndpoints)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
-	for i := range addrs {
+	for i := range grpcEndpoints {
 		if i == int(vstate.id) {
 			continue
 		}
@@ -145,11 +148,11 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 		LeaderCommit: vstate.commitIndex,
 	})
 	if err != nil {
-		log.Printf("AppendEntries RPC for %s failed. err: %s", addrs[destID], err.Error())
+		log.Printf("AppendEntries RPC for %s failed. err: %s", grpcEndpoints[destID], err.Error())
 		return err
 	}
 	if !reply.Success {
-		log.Printf("AppendEntries RPC for %s failed.", addrs[destID])
+		log.Printf("AppendEntries RPC for %s failed.", grpcEndpoints[destID])
 		if reply.Term > pstate.currentTerm {
 			transitionToFollower()
 			pstate.currentTerm = reply.Term
@@ -161,7 +164,7 @@ func sendLog(ctx context.Context, destID int32, logEntries []LogEntry) error {
 }
 
 func sendHeartBeat() error {
-	for i := range addrs {
+	for i := range grpcEndpoints {
 		if i == int(vstate.id) {
 			continue
 		}

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"log"
+	"math/rand"
 	"sync"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
@@ -17,7 +18,7 @@ const (
 	Leader
 
 	InvalidLockHolderID int32 = -1
-	InvalidAgentID            = -1
+	InvalidAgentID      int32 = -1
 )
 
 type StateMachine struct {
@@ -47,8 +48,8 @@ var (
 	pstate PersistentState
 	vstate VolatileState
 
-	addrs      []string
-	rpcClients []sfrpc.RaftClient
+	grpcEndpoints []string
+	rpcClients    []sfrpc.RaftClient
 
 	muStateTransition sync.Mutex
 )
@@ -68,14 +69,14 @@ func init() {
 		commitIndex: -1,
 		lastApplied: -1,
 	}
+}
 
-	addrs = []string{
-		"localhost:8080",
-		"localhost:8081",
-		"localhost:8082",
-	}
+func Init(id int32, ge []string) {
+	vstate.id = id
+	grpcEndpoints = ge
 
-	for _, addr := range addrs {
+	// gRPC client setup.
+	for _, addr := range grpcEndpoints {
 		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
@@ -84,10 +85,18 @@ func init() {
 
 		rpcClients = append(rpcClients, sfrpc.NewRaftClient(conn))
 	}
-}
 
-func Init(id int32) {
-	vstate.id = id
+	initLeader()
+
+	// Start daemons.
+	for i := range grpcEndpoints {
+		i := i
+		if int32(i) == vstate.id {
+			continue
+		}
+		go sendLogDaemon(int32(i))
+	}
+	go checkElectionTimeout()
 }
 
 func transitionToLeader() error {
@@ -132,24 +141,16 @@ func IsLeader() bool {
 	return vstate.role == Leader
 }
 
-func LeaderAddr() string {
+func LeaderID() int32 {
 	if vstate.role == Candidate {
-		return ""
+		return InvalidAgentID
 	}
-	return addrs[pstate.votedFor]
+	if pstate.votedFor == InvalidAgentID {
+		return rand.Int31n(int32(len(grpcEndpoints)))
+	}
+	return pstate.votedFor
 }
 
 func LockHolderID() int32 {
 	return sm.LockHolderID
-}
-
-func StartDaemons() {
-	for i := range addrs {
-		i := i
-		if int32(i) == vstate.id {
-			continue
-		}
-		go sendLogDaemon(int32(i))
-	}
-	go checkElectionTimeout()
 }

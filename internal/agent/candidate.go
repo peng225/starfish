@@ -21,9 +21,9 @@ func election() {
 		pstate.votedFor = vstate.id
 		pstate.currentTerm++
 		// TODO: save votedFor to drive.
-		voteResult := make(chan bool, len(addrs))
+		voteResult := make(chan bool, len(grpcEndpoints))
 		ctx, cancel := context.WithCancelCause(context.Background())
-		for i := range addrs {
+		for i := range grpcEndpoints {
 			i := i
 			go func() {
 				if i == int(vstate.id) {
@@ -41,13 +41,13 @@ func election() {
 					LastLogTerm:  llt,
 				})
 				if err != nil {
-					log.Printf("RequestVote RPC for %s failed. err: %s", addrs[i], err.Error())
+					log.Printf("RequestVote RPC for %s failed. err: %s", grpcEndpoints[i], err.Error())
 					voteResult <- false
 					return
 				}
 				if reply.Term > pstate.currentTerm {
 					log.Printf("Found larger term in the response of RequestVote RPC for %s. term: %d, response term: %d",
-						addrs[i], pstate.currentTerm, reply.Term)
+						grpcEndpoints[i], pstate.currentTerm, reply.Term)
 					cancel(DemotedToFollower)
 					transitionToFollower()
 					pstate.currentTerm = reply.Term
@@ -69,7 +69,7 @@ func election() {
 				if res {
 					voteCount++
 					log.Println("Got a vote.")
-					if voteCount > len(addrs)/2 {
+					if voteCount > len(grpcEndpoints)/2 {
 						err := transitionToLeader()
 						if err != nil {
 							// TODO: What is the expectation?

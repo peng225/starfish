@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// TODO: should stop when the process is not a follower.
 func checkElectionTimeout() {
 	electionTimeoutBase = time.Now()
 	ticker := time.NewTicker(time.Microsecond * 100)

@@ -11,7 +11,14 @@ import (
 	"github.com/peng225/starfish/internal/agent"
 )
 
-var mu sync.Mutex
+var (
+	mu           sync.Mutex
+	webEndpoints []string
+)
+
+func Init(we []string) {
+	webEndpoints = we
+}
 
 func LockHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("LockHandler start.")
@@ -20,12 +27,12 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	if !agent.IsLeader() {
-		laddr := agent.LeaderAddr()
-		if laddr == "" {
+		lid := agent.LeaderID()
+		if lid == agent.InvalidAgentID {
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
-			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
 		}
 		return
 	}
@@ -67,7 +74,8 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		err = agent.AppendLog(&logEntry)
 		if errors.Is(err, agent.DemotedToFollower) {
-			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+			lid := agent.LeaderID()
+			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
 			return
 		}
 	default:
@@ -83,12 +91,12 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	if !agent.IsLeader() {
-		laddr := agent.LeaderAddr()
-		if laddr == "" {
+		lid := agent.LeaderID()
+		if lid == agent.InvalidAgentID {
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
-			http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+			http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
 		}
 		return
 	}
@@ -132,7 +140,8 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = agent.AppendLog(&logEntry)
 	if errors.Is(err, agent.DemotedToFollower) {
-		http.Redirect(w, r, agent.LeaderAddr(), http.StatusTemporaryRedirect)
+		lid := agent.LeaderID()
+		http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
 		return
 	}
 }
