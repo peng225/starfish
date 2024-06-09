@@ -105,7 +105,7 @@ func transitionToLeader() error {
 	if vstate.role == Leader {
 		return nil
 	}
-	log.Println("Transition to leader.")
+	log.Printf("Transition to leader. term: %d", pstate.currentTerm)
 	// TODO: how to handle the down agent?
 	// err := sendHeartBeat()
 	// if err != nil {

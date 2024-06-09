@@ -56,7 +56,8 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	case req.Term > pstate.currentTerm:
 		transitionToFollower()
 	}
-	pstate.currentTerm = reply.Term
+	pstate.currentTerm = req.Term
+	reply.Term = pstate.currentTerm
 
 	//Check the previous log entry match.
 	if int64(len(pstate.log)-1) < req.PrevLogIndex ||
@@ -107,7 +108,8 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 		transitionToFollower()
 	default:
 	}
-	pstate.currentTerm = reply.Term
+	pstate.currentTerm = req.Term
+	reply.Term = pstate.currentTerm
 
 	if pstate.votedFor >= 0 && req.CandidateID != pstate.votedFor {
 		return reply, nil
