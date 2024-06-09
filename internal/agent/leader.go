@@ -17,7 +17,7 @@ type VolatileLeaderState struct {
 type sendLogRequest struct {
 	ctx      context.Context
 	cancel   context.CancelCauseFunc
-	logIndex int64
+	endIndex int64
 	errCh    chan error
 }
 
@@ -63,7 +63,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstate.log = append(pstate.log, *logEntry)
 	// TODO: save to disk
 
-	errCh := sendLogToDaemon(int64(len(pstate.log) - 1))
+	errCh := broadcastToDaemon(int64(len(pstate.log)))
 	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -77,7 +77,7 @@ func AppendLog(logEntry *LogEntry) error {
 	return nil
 }
 
-func sendLogToDaemon(logIndex int64) chan error {
+func broadcastToDaemon(endIndex int64) chan error {
 	errCh := make(chan error, len(grpcEndpoints)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
 	for i := range grpcEndpoints {
@@ -87,7 +87,7 @@ func sendLogToDaemon(logIndex int64) chan error {
 		sendLogQueues[i] <- sendLogRequest{
 			ctx:      ctx,
 			cancel:   cancel,
-			logIndex: logIndex,
+			endIndex: endIndex,
 			errCh:    errCh,
 		}
 	}
@@ -97,15 +97,8 @@ func sendLogToDaemon(logIndex int64) chan error {
 func sendLogDaemon(destID int32) {
 	for {
 		req := <-sendLogQueues[destID]
-		log.Println("sendLogDaemon kicked.")
-		var err error
-		if req.logIndex == -1 {
-			err = sendHeatBeatWithRetry(req.ctx, req.cancel, destID,
-				req.errCh)
-		} else {
-			err = sendLogWithRetry(req.ctx, req.cancel, destID,
-				req.logIndex, req.errCh)
-		}
+		err := sendLogWithRetry(req.ctx, req.cancel, destID,
+			req.endIndex, req.errCh)
 		if err != nil {
 			if !errors.Is(err, DemotedToFollower) {
 				log.Fatalf("Fatal error: %s", err)
@@ -115,29 +108,9 @@ func sendLogDaemon(destID int32) {
 }
 
 func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32,
-	logIndex int64, errCh chan error) error {
-	for vlstate.nextIndex[destID] <= logIndex {
-		err := sendLog(ctx, destID, 1)
-		if err != nil {
-			if errors.Is(err, DemotedToFollower) {
-				log.Println("Demoted to the follower.")
-				cancel(DemotedToFollower)
-				errCh <- err
-				return err
-			} else if errors.Is(err, LogMismatch) {
-				vlstate.nextIndex[destID]--
-			}
-			continue
-		}
-	}
-	errCh <- nil
-	return nil
-}
-
-func sendHeatBeatWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32,
-	errCh chan error) error {
+	endIndex int64, errCh chan error) error {
 	for {
-		err := sendLog(ctx, destID, 0)
+		err := sendLog(ctx, destID, endIndex-vlstate.nextIndex[destID])
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {
 				log.Println("Demoted to the follower.")
@@ -146,10 +119,14 @@ func sendHeatBeatWithRetry(ctx context.Context, cancel context.CancelCauseFunc, 
 				return err
 			} else if errors.Is(err, LogMismatch) {
 				vlstate.nextIndex[destID]--
+			} else {
+				time.Sleep(200 * time.Millisecond)
 			}
 			continue
 		}
-		break
+		if endIndex <= vlstate.nextIndex[destID] {
+			break
+		}
 	}
 	errCh <- nil
 	return nil
@@ -205,7 +182,7 @@ func heartBeatDaemon() {
 		if vstate.role != Leader {
 			break
 		}
-		errCh := sendLogToDaemon(-1)
+		errCh := broadcastToDaemon(int64(len(pstate.log)))
 		for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 			err := <-errCh
 			if err != nil && errors.Is(err, DemotedToFollower) {
