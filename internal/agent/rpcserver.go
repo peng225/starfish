@@ -84,11 +84,12 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 			log.Fatalf("Invalid entry index. len(pstate.log): %d, entryIndex: %d",
 				len(pstate.log), entryIndex)
 		}
+		// When you reach here, the log has already been appended,
+		// and no operation is executed to make the gRPC call idempotent.
 	}
 
 	if req.LeaderCommit > vstate.commitIndex {
 		vstate.commitIndex = min(req.LeaderCommit, int64(len(pstate.log)-1))
-		// TODO: apply committed logs.
 	}
 
 	reply.Success = true
