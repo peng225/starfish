@@ -23,6 +23,7 @@ type config struct {
 	GRPCEndpoints []string `yaml:"grpcEndpoints"`
 }
 
+// TODO: "Eventually" is needed for PUT requests, too.
 func TestLockAndUnlock(t *testing.T) {
 	configFileName := "../config.yaml"
 	data, err := os.ReadFile(configFileName)

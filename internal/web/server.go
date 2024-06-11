@@ -68,6 +68,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer r.Body.Close()
+
 		lockRequestedID, err := strconv.ParseInt(string(body), 10, 32)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -77,7 +78,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			// Already has a lock.
 			break
 		}
-		if 0 < lockHandlerID {
+		if 0 <= lockHandlerID {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}

@@ -30,7 +30,7 @@ func TestStress(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	clientCount := 8
+	clientCount := 16
 	wg.Add(clientCount)
 	for i := 0; i < clientCount; i++ {
 		go func(clientID int) {
