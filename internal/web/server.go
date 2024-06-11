@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/peng225/starfish/internal/agent"
 )
@@ -37,14 +38,20 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lockHandlerID := agent.LockHolderID()
-	switch r.Method {
-	case http.MethodGet:
-		if agent.PendingApplyLogExist() {
+	i := 0
+	for agent.PendingApplyLogExist() {
+		if i == 3 {
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
+		i++
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	lockHandlerID := agent.LockHolderID()
+	switch r.Method {
+	case http.MethodGet:
 		lhIDByte := []byte(strconv.FormatInt(int64(lockHandlerID), 10))
 		written := 0
 		for len(lhIDByte) != written {
@@ -78,7 +85,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			LockHolderID: int32(lockRequestedID),
 		}
 		err = agent.AppendLog(&logEntry)
-		if errors.Is(err, agent.DemotedToFollower) {
+		if err != nil && errors.Is(err, agent.DemotedToFollower) {
 			lid := agent.LeaderID()
 			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
 			return
@@ -111,10 +118,15 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if agent.PendingApplyLogExist() {
-		w.Header().Add("Retry-After", "1")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
+	i := 0
+	for agent.PendingApplyLogExist() {
+		if i == 3 {
+			w.Header().Add("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		i++
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	body, err := io.ReadAll(r.Body)
@@ -150,7 +162,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		LockHolderID: agent.InvalidLockHolderID,
 	}
 	err = agent.AppendLog(&logEntry)
-	if errors.Is(err, agent.DemotedToFollower) {
+	if err != nil && errors.Is(err, agent.DemotedToFollower) {
 		lid := agent.LeaderID()
 		http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
 		return
