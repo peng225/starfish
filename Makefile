@@ -10,6 +10,17 @@ proto:
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
 		internal/rpc/raft.proto
 
+.PHONY: run
+run: $(STARFISH)
+	$(STARFISH) -id 0 -config config.yaml &
+	$(STARFISH) -id 1 -config config.yaml &
+	$(STARFISH) -id 2 -config config.yaml &
+
+.PHONY: e2e-test
+e2e-test: $(STARFISH)
+	go test -v ./test/...
+
 .PHONY: clean
 clean:
+	pkill $$(basename $(STARFISH)) || true
 	rm -f $(STARFISH)
