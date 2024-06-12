@@ -52,11 +52,14 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	case req.Term == pstate.currentTerm:
 		if vstate.role == Candidate {
 			transitionToFollower()
+		} else if vstate.role == Leader {
+			log.Fatalf("Another leader found in the same term. ID: %d", req.LeaderID)
 		}
 	case req.Term > pstate.currentTerm:
 		transitionToFollower()
 	}
 	pstate.currentTerm = req.Term
+	vstate.currentLeaderID = req.LeaderID
 	reply.Term = pstate.currentTerm
 
 	//Check the previous log entry match.

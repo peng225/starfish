@@ -2,7 +2,6 @@ package agent
 
 import (
 	"log"
-	"math/rand"
 	"sync"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
@@ -37,10 +36,11 @@ type PersistentState struct {
 }
 
 type VolatileState struct {
-	id          int32
-	role        Role
-	commitIndex int64
-	lastApplied int64
+	id              int32
+	role            Role
+	commitIndex     int64
+	lastApplied     int64
+	currentLeaderID int32
 }
 
 var (
@@ -66,10 +66,11 @@ func init() {
 		log:         make([]LogEntry, 0),
 	}
 	vstate = VolatileState{
-		id:          0,
-		role:        Follower,
-		commitIndex: -1,
-		lastApplied: -1,
+		id:              0,
+		role:            Follower,
+		commitIndex:     -1,
+		lastApplied:     -1,
+		currentLeaderID: InvalidAgentID,
 	}
 	notifyLogApply = make(chan struct{}, 1)
 }
@@ -112,6 +113,7 @@ func transitionToLeader() error {
 	log.Printf("Transition to leader. term: %d", pstate.currentTerm)
 	initLeaderOnPromotion()
 	vstate.role = Leader
+	vstate.currentLeaderID = vstate.id
 	go heartBeatDaemon()
 	return nil
 }
@@ -135,6 +137,7 @@ func transitionToCandidate() {
 	}
 	log.Println("Transition to candidate.")
 	vstate.role = Candidate
+	vstate.currentLeaderID = InvalidAgentID
 }
 
 func IsLeader() bool {
@@ -142,13 +145,7 @@ func IsLeader() bool {
 }
 
 func LeaderID() int32 {
-	if vstate.role == Candidate {
-		return InvalidAgentID
-	}
-	if pstate.votedFor == InvalidAgentID {
-		return rand.Int31n(int32(len(grpcEndpoints)))
-	}
-	return pstate.votedFor
+	return vstate.currentLeaderID
 }
 
 func LockHolderID() int32 {
