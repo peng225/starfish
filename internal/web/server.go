@@ -2,8 +2,9 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -22,8 +23,8 @@ func Init(we []string) {
 }
 
 func LockHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("LockHandler start.")
-	defer log.Println("LockHandler end.")
+	slog.Info("LockHandler start.")
+	defer slog.Info("LockHandler end.")
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -98,8 +99,8 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UnlockHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("UnlockHandler start.")
-	defer log.Println("UnlockHandler end.")
+	slog.Info("UnlockHandler start.")
+	defer slog.Info("UnlockHandler end.")
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -143,19 +144,20 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	lockHandlerID := agent.LockHolderID()
 	if unlockRequestedID < 0 {
-		log.Printf("Current lock holder's ID is %d, but unlock requested for ID %d.",
-			lockHandlerID, unlockRequestedID)
+		slog.Error(fmt.Sprintf("Current lock holder's ID is %d, but unlock requested for ID %d.",
+			lockHandlerID, unlockRequestedID))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if unlockRequestedID != int64(lockHandlerID) {
-		log.Printf("Current lock holder's ID is %d, but unlock requested for ID %d.",
-			lockHandlerID, unlockRequestedID)
+		slog.Error(fmt.Sprintf("Current lock holder's ID is %d, but unlock requested for ID %d.",
+			lockHandlerID, unlockRequestedID))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if unlockRequestedID < 0 {
-		log.Printf("Unlock requested for an invalid ID %d.", unlockRequestedID)
+		slog.Error("Unlock requested for an invalid ID.",
+			slog.Int("ID", int(unlockRequestedID)))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

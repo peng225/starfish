@@ -2,8 +2,9 @@ package store
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"reflect"
 	"sync"
@@ -43,11 +44,14 @@ func MustNewFileStore(fileName string) *FileStore {
 
 	_, err := os.Stat(fileName)
 	if err != nil {
-		log.Printf("'%s' not found. Create a new one.", fileName)
+		slog.Info("File not found. Create a new one.",
+			slog.String("fileName", fileName))
 		fs.log = make([]*agent.LogEntry, 0)
 		fs.file, err = os.OpenFile(fileName, os.O_CREATE|os.O_RDWR|os.O_SYNC, 0664)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("OpenFile failed.",
+				slog.String("err", err.Error()))
+			os.Exit(1)
 		}
 		fs.putMarker()
 		fs.PutCurrentTerm(0)
@@ -58,39 +62,56 @@ func MustNewFileStore(fileName string) *FileStore {
 
 	fs.file, err = os.OpenFile(fileName, os.O_RDWR|os.O_SYNC, 0664)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("OpenFile failed",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	var m uint64
 	err = binary.Read(fs.file, binary.LittleEndian, &m)
 	if err != nil {
-		log.Fatalf("binary.Read marker failed. err: %s", err)
+		slog.Error("binary.Read marker failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	if m != marker {
-		log.Fatalf("Corrupted file marker. expected: %#x, actual: %#x", marker, m)
+		slog.Error("Corrupted file marker.",
+			slog.String("expected", fmt.Sprintf("%#x", marker)),
+			slog.String("actaual", fmt.Sprintf("%#x", m)))
+		os.Exit(1)
 	}
 	err = binary.Read(fs.file, binary.LittleEndian, &fs.currentTerm)
 	if err != nil {
-		log.Fatalf("binary.Read currentTerm failed. err: %s", err)
+		slog.Error("binary.Read currentTerm failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	err = binary.Read(fs.file, binary.LittleEndian, &fs.votedFor)
 	if err != nil {
-		log.Fatalf("binary.Read votedFor failed. err: %s", err)
+		slog.Error("binary.Read votedFor failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	_, err = fs.file.Seek(4, io.SeekCurrent)
 	if err != nil {
-		log.Fatalf("Seek failed. err: %s", err)
+		slog.Error("Seek failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	var logSize int64
 	err = binary.Read(fs.file, binary.LittleEndian, &logSize)
 	if err != nil {
-		log.Fatalf("binary.Read logSize failed. err: %s", err)
+		slog.Error("binary.Read logSize failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	for i := int64(0); i < logSize; i++ {
 		var entry agent.LogEntry
 		err = binary.Read(fs.file, binary.LittleEndian, &entry)
 		if err != nil {
-			log.Fatalf("binary.Read %d-th entry failed. err: %s", i, err)
+			slog.Error(fmt.Sprintf("binary.Read %d-th entry failed.", i),
+				slog.String("err", err.Error()))
+			os.Exit(1)
 		}
 		fs.log = append(fs.log, &entry)
 	}
@@ -106,7 +127,9 @@ func (fs *FileStore) putMarker() {
 	binary.LittleEndian.PutUint64(buf, marker)
 	_, err := fs.file.WriteAt(buf, markerOffset)
 	if err != nil {
-		log.Fatalf("failed to write marker. err: %s", err)
+		slog.Error("Failed to write marker.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -125,7 +148,9 @@ func (fs *FileStore) PutCurrentTerm(term int64) {
 	binary.LittleEndian.PutUint64(buf, uint64(term))
 	_, err := fs.file.WriteAt(buf, termOffset)
 	if err != nil {
-		log.Fatalf("failed to write offset. err: %s", err)
+		slog.Error("Failed to write offset.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -144,7 +169,9 @@ func (fs *FileStore) PutVotedFor(vf int32) {
 	binary.LittleEndian.PutUint32(buf, uint32(vf))
 	_, err := fs.file.WriteAt(buf, votedForOffset)
 	if err != nil {
-		log.Fatalf("failed to write votedFor. err: %s", err)
+		slog.Error("Failed to write votedFor.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -171,7 +198,9 @@ func (fs *FileStore) putLogSize() {
 	binary.LittleEndian.PutUint64(buf, uint64(len(fs.log)))
 	_, err := fs.file.WriteAt(buf, logSizeOffset)
 	if err != nil {
-		log.Fatalf("failed to write log size. err: %s", err)
+		slog.Error("Failed to write log size.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -183,11 +212,15 @@ func (fs *FileStore) AppendLog(e *agent.LogEntry) {
 	fs.log = append(fs.log, e)
 	_, err := fs.file.Seek(offset, io.SeekStart)
 	if err != nil {
-		log.Fatalf("Seek failed. err: %s", err)
+		slog.Error("Seek failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	err = binary.Write(fs.file, binary.LittleEndian, e)
 	if err != nil {
-		log.Fatalf("Write failed. err: %s", err)
+		slog.Error("Write failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 
 	// Update the log size on disk.
@@ -195,7 +228,9 @@ func (fs *FileStore) AppendLog(e *agent.LogEntry) {
 	binary.LittleEndian.PutUint64(buf, uint64(len(fs.log)))
 	_, err = fs.file.WriteAt(buf, logSizeOffset)
 	if err != nil {
-		log.Fatalf("failed to write log size. err: %s", err)
+		slog.Error("Failed to write log size.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -209,6 +244,8 @@ func (fs *FileStore) CutOffLogTail(from int64) {
 	binary.LittleEndian.PutUint64(buf, uint64(len(fs.log)))
 	_, err := fs.file.WriteAt(buf, logSizeOffset)
 	if err != nil {
-		log.Fatalf("failed to write log size. err: %s", err)
+		slog.Error("Failed to write log size.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 }

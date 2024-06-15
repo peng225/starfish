@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"log"
+	"log/slog"
 	"math/rand"
 	"time"
 )
@@ -13,7 +13,7 @@ func checkElectionTimeout() {
 	for {
 		<-ticker.C
 		if time.Since(electionTimeoutBase) > electionTimeout+r {
-			log.Println("Election timeout detected.")
+			slog.Info("Election timeout detected.")
 			transitionToCandidate()
 			go election()
 			break

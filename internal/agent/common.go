@@ -1,7 +1,8 @@
 package agent
 
 import (
-	"log"
+	"log/slog"
+	"os"
 	"sync"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
@@ -73,9 +74,12 @@ func Init(id int32, ge []string, ps PersistentStore) {
 
 	// gRPC client setup.
 	for _, addr := range grpcEndpoints {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			log.Printf("Failed to connect to %s. err: %s", addr, err.Error())
+			slog.Error("grpc.NewClient failed.",
+				slog.String("addr", addr),
+				slog.String("err", err.Error()))
 			return
 		}
 
@@ -102,7 +106,8 @@ func transitionToLeader() error {
 	if vstate.role == Leader {
 		return nil
 	}
-	log.Printf("Transition to leader. term: %d", pstore.CurrentTerm())
+	slog.Info("Transition to leader.",
+		slog.Int64("term", pstore.CurrentTerm()))
 	initLeaderOnPromotion()
 	vstate.role = Leader
 	vstate.currentLeaderID = vstate.id
@@ -116,7 +121,7 @@ func transitionToFollower() {
 	if vstate.role == Follower {
 		return
 	}
-	log.Println("Transition to follower.")
+	slog.Info("Transition to follower.")
 	vstate.role = Follower
 	go checkElectionTimeout()
 }
@@ -127,7 +132,7 @@ func transitionToCandidate() {
 	if vstate.role == Candidate {
 		return
 	}
-	log.Println("Transition to candidate.")
+	slog.Info("Transition to candidate.")
 	vstate.role = Candidate
 	vstate.currentLeaderID = InvalidAgentID
 }
@@ -169,8 +174,10 @@ func applierDaemon() {
 				vstate.lastApplied++
 			}
 		} else if vstate.commitIndex < vstate.lastApplied {
-			log.Fatalf("invalid commit and last applied index. commitIndex: %d, lastApplied: %d",
-				vstate.commitIndex, vstate.lastApplied)
+			slog.Error("Invalid commit and last applied index.",
+				slog.Int64("commitIndex", vstate.commitIndex),
+				slog.Int64("lastApplied", vstate.lastApplied))
+			os.Exit(1)
 		}
 	}
 }
