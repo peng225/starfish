@@ -16,6 +16,10 @@ run: $(STARFISH)
 	$(STARFISH) -id 1 -config config.yaml &
 	$(STARFISH) -id 2 -config config.yaml &
 
+.PHONY: test
+test: $(STARFISH)
+	go test -v ./internal/...
+
 .PHONY: e2e-test
 e2e-test: $(STARFISH)
 	go test -v ./test/...
