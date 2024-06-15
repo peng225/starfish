@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/peng225/starfish/internal/agent"
+	"github.com/peng225/starfish/internal/store"
 	"github.com/peng225/starfish/internal/web"
 	"gopkg.in/yaml.v2"
 )
@@ -51,8 +53,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to unmarshal the config file. err: %s", err)
 	}
-
-	agent.Init(int32(id), c.GRPCEndpoints)
+	fs := store.MustNewFileStore(fmt.Sprintf("filestore-%d.bin", id))
+	agent.Init(int32(id), c.GRPCEndpoints, fs)
 
 	// Start gRPC server.
 	grpcPort := getPort(c.GRPCEndpoints[id])

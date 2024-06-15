@@ -52,7 +52,7 @@ func initLeader() {
 
 func initLeaderOnPromotion() {
 	for i := 0; i < len(vlstate.nextIndex); i++ {
-		vlstate.nextIndex[i] = int64(len(pstate.log))
+		vlstate.nextIndex[i] = pstore.LogSize()
 	}
 	for i := 0; i < len(vlstate.matchIndex); i++ {
 		vlstate.matchIndex[i] = -1
@@ -64,11 +64,10 @@ func initLeaderOnPromotion() {
 func AppendLog(logEntry *LogEntry) error {
 	log.Println("AppendLog start.")
 	defer log.Println("AppendLog end.")
-	logEntry.Term = pstate.currentTerm
-	pstate.log = append(pstate.log, *logEntry)
-	// TODO: save to disk
+	logEntry.Term = pstore.CurrentTerm()
+	pstore.AppendLog(logEntry)
 
-	errCh := broadcastToLogSenderDaemons(int64(len(pstate.log)))
+	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
 	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
@@ -144,17 +143,17 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 			entryCount)
 	}
 	entries := make([]*sfrpc.LogEntry, 0)
-	for _, e := range pstate.log[vlstate.nextIndex[destID] : vlstate.nextIndex[destID]+entryCount] {
+	for i := vlstate.nextIndex[destID]; i < vlstate.nextIndex[destID]+entryCount; i++ {
 		entries = append(entries, &sfrpc.LogEntry{
-			LockHolderID: e.LockHolderID,
+			LockHolderID: pstore.LogEntry(i).LockHolderID,
 		})
 	}
 	plt := int64(-1)
 	if vlstate.nextIndex[destID] > 0 {
-		plt = pstate.log[vlstate.nextIndex[destID]-1].Term
+		plt = pstore.LogEntry(vlstate.nextIndex[destID] - 1).Term
 	}
 	reply, err := rpcClients[destID].AppendEntries(ctx, &sfrpc.AppendEntriesRequest{
-		Term:         pstate.currentTerm,
+		Term:         pstore.CurrentTerm(),
 		LeaderID:     vstate.id,
 		PrevLogIndex: vlstate.nextIndex[destID] - 1,
 		PrevLogTerm:  plt,
@@ -167,9 +166,9 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	}
 	if !reply.Success {
 		log.Printf("AppendEntries RPC for %s failed.", grpcEndpoints[destID])
-		if reply.Term > pstate.currentTerm {
+		if reply.Term > pstore.CurrentTerm() {
 			transitionToFollower()
-			pstate.currentTerm = reply.Term
+			pstore.PutCurrentTerm(reply.Term)
 			return DemotedToFollower
 		}
 		return LogMismatch
@@ -179,7 +178,7 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 }
 
 func broadcastHeartBeat() {
-	errCh := broadcastToLogSenderDaemons(int64(len(pstate.log)))
+	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
 	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
 		err := <-errCh
 		if err != nil {
