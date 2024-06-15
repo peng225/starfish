@@ -18,8 +18,8 @@ func election() {
 		}
 		log.Println("Election start.")
 		electionTimeoutBase = time.Now()
-		pstate.votedFor = vstate.id
-		pstate.currentTerm++
+		pstore.PutVotedFor(vstate.id)
+		pstore.PutCurrentTerm(pstore.CurrentTerm() + 1)
 		// TODO: save votedFor to drive.
 		voteResult := make(chan bool, len(grpcEndpoints))
 		ctx, cancel := context.WithCancelCause(context.Background())
@@ -31,13 +31,13 @@ func election() {
 					return
 				}
 				llt := int64(-1)
-				if len(pstate.log) > 0 {
-					llt = pstate.log[len(pstate.log)-1].Term
+				if pstore.LogSize() > 0 {
+					llt = pstore.LogEntry(pstore.LogSize() - 1).Term
 				}
 				reply, err := rpcClients[i].RequestVote(ctx, &sfrpc.RequestVoteRequest{
-					Term:         pstate.currentTerm,
+					Term:         pstore.CurrentTerm(),
 					CandidateID:  vstate.id,
-					LastLogIndex: int64(len(pstate.log)) - 1,
+					LastLogIndex: pstore.LogSize() - 1,
 					LastLogTerm:  llt,
 				})
 				if err != nil {
@@ -45,12 +45,12 @@ func election() {
 					voteResult <- false
 					return
 				}
-				if reply.Term > pstate.currentTerm {
+				if reply.Term > pstore.CurrentTerm() {
 					log.Printf("Found larger term in the response of RequestVote RPC for %s. term: %d, response term: %d",
-						grpcEndpoints[i], pstate.currentTerm, reply.Term)
+						grpcEndpoints[i], pstore.CurrentTerm(), reply.Term)
 					cancel(DemotedToFollower)
 					transitionToFollower()
-					pstate.currentTerm = reply.Term
+					pstore.PutCurrentTerm(reply.Term)
 				}
 				voteResult <- reply.VoteGranted
 			}()

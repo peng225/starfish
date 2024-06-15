@@ -27,12 +27,7 @@ type StateMachine struct {
 type LogEntry struct {
 	Term         int64
 	LockHolderID int32
-}
-
-type PersistentState struct {
-	currentTerm int64
-	votedFor    int32
-	log         []LogEntry
+	Reserved     int32
 }
 
 type VolatileState struct {
@@ -45,7 +40,7 @@ type VolatileState struct {
 
 var (
 	sm     StateMachine
-	pstate PersistentState
+	pstore PersistentStore
 	vstate VolatileState
 
 	grpcEndpoints []string
@@ -60,11 +55,6 @@ func init() {
 	sm = StateMachine{
 		LockHolderID: InvalidLockHolderID,
 	}
-	pstate = PersistentState{
-		currentTerm: 0,
-		votedFor:    InvalidAgentID,
-		log:         make([]LogEntry, 0),
-	}
 	vstate = VolatileState{
 		id:              0,
 		role:            Follower,
@@ -75,9 +65,11 @@ func init() {
 	notifyLogApply = make(chan struct{}, 1)
 }
 
-func Init(id int32, ge []string) {
+func Init(id int32, ge []string, ps PersistentStore) {
 	vstate.id = id
 	grpcEndpoints = ge
+
+	pstore = ps
 
 	// gRPC client setup.
 	for _, addr := range grpcEndpoints {
@@ -110,7 +102,7 @@ func transitionToLeader() error {
 	if vstate.role == Leader {
 		return nil
 	}
-	log.Printf("Transition to leader. term: %d", pstate.currentTerm)
+	log.Printf("Transition to leader. term: %d", pstore.CurrentTerm())
 	initLeaderOnPromotion()
 	vstate.role = Leader
 	vstate.currentLeaderID = vstate.id
@@ -164,7 +156,7 @@ func updateCommitIndex(ci int64) {
 }
 
 func applyLog(logIndex int64) {
-	log := pstate.log[logIndex]
+	log := pstore.LogEntry(logIndex)
 	sm.LockHolderID = log.LockHolderID
 }
 

@@ -42,29 +42,29 @@ func StartRPCServer(port int) {
 func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendEntriesRequest) (*sfrpc.AppendEntriesReply, error) {
 	electionTimeoutBase = time.Now()
 	reply := &sfrpc.AppendEntriesReply{
-		Term:    pstate.currentTerm,
+		Term:    pstore.CurrentTerm(),
 		Success: false,
 	}
 
 	switch {
-	case req.Term < pstate.currentTerm:
+	case req.Term < pstore.CurrentTerm():
 		return reply, nil
-	case req.Term == pstate.currentTerm:
+	case req.Term == pstore.CurrentTerm():
 		if vstate.role == Candidate {
 			transitionToFollower()
 		} else if vstate.role == Leader {
 			log.Fatalf("Another leader found in the same term. ID: %d", req.LeaderID)
 		}
-	case req.Term > pstate.currentTerm:
+	case req.Term > pstore.CurrentTerm():
 		transitionToFollower()
 	}
-	pstate.currentTerm = req.Term
+	pstore.PutCurrentTerm(req.Term)
 	vstate.currentLeaderID = req.LeaderID
-	reply.Term = pstate.currentTerm
+	reply.Term = pstore.CurrentTerm()
 
 	//Check the previous log entry match.
-	if int64(len(pstate.log)-1) < req.PrevLogIndex ||
-		(req.PrevLogIndex > 0 && pstate.log[req.PrevLogIndex].Term != req.PrevLogTerm) {
+	if pstore.LogSize()-1 < req.PrevLogIndex ||
+		(req.PrevLogIndex > 0 && pstore.LogEntry(req.PrevLogIndex).Term != req.PrevLogTerm) {
 		return reply, nil
 	}
 
@@ -72,27 +72,27 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		entryIndex := req.PrevLogIndex + int64(i) + 1
 		// If the corresponding entry exists but does not have the same term,
 		// remove the mismatched entries.
-		if entryIndex <= int64(len(pstate.log)-1) &&
-			pstate.log[entryIndex].Term != req.Term {
-			pstate.log = pstate.log[:entryIndex]
+		if entryIndex <= pstore.LogSize()-1 &&
+			pstore.LogEntry(entryIndex).Term != req.Term {
+			pstore.CutOffLogTail(entryIndex)
 			break
 		}
 		// If the entry does not exist, it is appended.
-		if int64(len(pstate.log)) == entryIndex {
-			pstate.log = append(pstate.log, LogEntry{
+		if pstore.LogSize() == entryIndex {
+			pstore.AppendLog(&LogEntry{
 				Term:         req.Term,
 				LockHolderID: entry.LockHolderID,
 			})
-		} else if int64(len(pstate.log)) < entryIndex {
-			log.Fatalf("Invalid entry index. len(pstate.log): %d, entryIndex: %d",
-				len(pstate.log), entryIndex)
+		} else if pstore.LogSize() < entryIndex {
+			log.Fatalf("Invalid entry index. pstore.LogSize(): %d, entryIndex: %d",
+				pstore.LogSize(), entryIndex)
 		}
 		// When you reach here, the log has already been appended,
 		// and no operation is executed to make the gRPC call idempotent.
 	}
 
 	if req.LeaderCommit > vstate.commitIndex {
-		updateCommitIndex(min(req.LeaderCommit, int64(len(pstate.log)-1)))
+		updateCommitIndex(min(req.LeaderCommit, pstore.LogSize()-1))
 	}
 
 	reply.Success = true
@@ -100,36 +100,34 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 }
 func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVoteRequest) (*sfrpc.RequestVoteReply, error) {
 	reply := &sfrpc.RequestVoteReply{
-		Term:        pstate.currentTerm,
+		Term:        pstore.CurrentTerm(),
 		VoteGranted: false,
 	}
 	switch {
-	case req.Term < pstate.currentTerm:
+	case req.Term < pstore.CurrentTerm():
 		return reply, nil
-	case req.Term > pstate.currentTerm:
-		pstate.votedFor = InvalidAgentID
-		// TODO: save to disk
+	case req.Term > pstore.CurrentTerm():
+		pstore.PutVotedFor(InvalidAgentID)
 		transitionToFollower()
 	default:
 	}
-	pstate.currentTerm = req.Term
-	reply.Term = pstate.currentTerm
+	pstore.PutCurrentTerm(req.Term)
+	reply.Term = pstore.CurrentTerm()
 
-	if pstate.votedFor >= 0 && req.CandidateID != pstate.votedFor {
+	if pstore.VotedFor() >= 0 && req.CandidateID != pstore.VotedFor() {
 		return reply, nil
 	}
 	llt := int64(-1)
-	if len(pstate.log) > 0 {
-		llt = pstate.log[len(pstate.log)-1].Term
+	if pstore.LogSize() > 0 {
+		llt = pstore.LogEntry(pstore.LogSize() - 1).Term
 	}
 	if req.LastLogTerm < llt ||
 		(req.LastLogTerm == llt &&
-			req.LastLogIndex < int64(len(pstate.log))-1) {
+			req.LastLogIndex < pstore.LogSize()-1) {
 		return reply, nil
 	}
 
 	reply.VoteGranted = true
-	pstate.votedFor = req.CandidateID
-	// TODO: save to disk
+	pstore.PutVotedFor(req.CandidateID)
 	return reply, nil
 }
