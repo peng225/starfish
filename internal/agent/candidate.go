@@ -77,9 +77,9 @@ func election() {
 					if voteCount > len(grpcEndpoints)/2 {
 						err := transitionToLeader()
 						if err != nil {
-							// TODO: What is the expectation?
-							// slog.Error("Failed to promote to the leader. err: %s", err)
-							// break WaitForVote
+							slog.Error("Failed to promote to the leader.",
+								slog.String("err", err.Error()))
+							break WaitForVote
 						}
 						return
 					}

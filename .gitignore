@@ -21,3 +21,6 @@ starfish
 # Go workspace file
 go.work
 go.work.sum
+
+# Others
+filestore*.bin
