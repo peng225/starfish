@@ -19,6 +19,7 @@ const (
 
 	InvalidLockHolderID int32 = -1
 	InvalidAgentID      int32 = -1
+	NoopAgentID         int32 = -2
 )
 
 type StateMachine struct {
@@ -106,12 +107,28 @@ func transitionToLeader() error {
 	if vstate.role == Leader {
 		return nil
 	}
-	slog.Info("Transition to leader.",
+	slog.Info("Try to transition to leader.",
 		slog.Int64("term", pstore.CurrentTerm()))
+	// Here, we want to commit the entries in the past terms.
+	// However, the Rust algorithm allows the leader
+	// only to commit entries of its own term.
+	// Thus, we have to put a no-op entry and commit it,
+	// which leads to committing all the older entries.
+	e := &LogEntry{
+		Term:         pstore.CurrentTerm(),
+		LockHolderID: NoopAgentID,
+	}
+	err := AppendLog(e)
+	if err != nil {
+		return err
+	}
+
 	initLeaderOnPromotion()
 	vstate.role = Leader
 	vstate.currentLeaderID = vstate.id
 	go heartBeatDaemon()
+	slog.Info("Leader transition completed.",
+		slog.Int64("term", pstore.CurrentTerm()))
 	return nil
 }
 
@@ -161,7 +178,11 @@ func updateCommitIndex(ci int64) {
 }
 
 func applyLog(logIndex int64) {
+	defer func() { vstate.lastApplied++ }()
 	log := pstore.LogEntry(logIndex)
+	if log.LockHolderID == NoopAgentID {
+		return
+	}
 	sm.LockHolderID = log.LockHolderID
 }
 
@@ -171,7 +192,6 @@ func applierDaemon() {
 		if vstate.lastApplied < vstate.commitIndex {
 			for logIndex := vstate.lastApplied + 1; logIndex <= vstate.commitIndex; logIndex++ {
 				applyLog(logIndex)
-				vstate.lastApplied++
 			}
 		} else if vstate.commitIndex < vstate.lastApplied {
 			slog.Error("Invalid commit and last applied index.",

@@ -58,8 +58,6 @@ func initLeaderOnPromotion() {
 	for i := 0; i < len(vlstate.matchIndex); i++ {
 		vlstate.matchIndex[i] = -1
 	}
-
-	broadcastHeartBeat()
 }
 
 func AppendLog(logEntry *LogEntry) error {
