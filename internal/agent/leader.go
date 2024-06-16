@@ -3,7 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
@@ -62,8 +63,8 @@ func initLeaderOnPromotion() {
 }
 
 func AppendLog(logEntry *LogEntry) error {
-	log.Println("AppendLog start.")
-	defer log.Println("AppendLog end.")
+	slog.Info("AppendLog start.")
+	defer slog.Info("AppendLog end.")
 	logEntry.Term = pstore.CurrentTerm()
 	pstore.AppendLog(logEntry)
 
@@ -103,19 +104,21 @@ func logSenderDaemon(destID int32) {
 			req.endIndex, req.errCh)
 		if err != nil {
 			if !errors.Is(err, DemotedToFollower) {
-				log.Fatalf("Fatal error: %s", err)
+				slog.Error("Fatal error.",
+					slog.String("err", err.Error()))
+				os.Exit(1)
 			}
 		}
 	}
 }
 
-func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destID int32,
-	endIndex int64, errCh chan error) error {
+func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
+	destID int32, endIndex int64, errCh chan error) error {
 	for {
 		err := sendLog(ctx, destID, endIndex-vlstate.nextIndex[destID])
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {
-				log.Println("Demoted to the follower.")
+				slog.Info("Demoted to the follower.")
 				cancel(DemotedToFollower)
 				errCh <- err
 				return err
@@ -139,8 +142,9 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc, destI
 // To-be-sent entries begin with the 'vlstate.nextIndex[destID]'-th log.
 func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	if entryCount < 0 {
-		log.Fatalf("entryCount must not be a negative number. entryCount: %d",
-			entryCount)
+		slog.Error("entryCount must not be a negative number.",
+			slog.Int64("entryCount", entryCount))
+		os.Exit(1)
 	}
 	entries := make([]*sfrpc.LogEntry, 0)
 	for i := vlstate.nextIndex[destID]; i < vlstate.nextIndex[destID]+entryCount; i++ {
@@ -161,11 +165,14 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 		LeaderCommit: vstate.commitIndex,
 	})
 	if err != nil {
-		log.Printf("AppendEntries RPC for %s failed. err: %s", grpcEndpoints[destID], err.Error())
+		slog.Error("AppendEntries RPC failed.",
+			slog.String("dest", grpcEndpoints[destID]),
+			slog.String("err", err.Error()))
 		return err
 	}
 	if !reply.Success {
-		log.Printf("AppendEntries RPC for %s failed.", grpcEndpoints[destID])
+		slog.Error("AppendEntries RPC failed.",
+			slog.String("dest", grpcEndpoints[destID]))
 		if reply.Term > pstore.CurrentTerm() {
 			transitionToFollower()
 			pstore.PutCurrentTerm(reply.Term)
@@ -185,7 +192,9 @@ func broadcastHeartBeat() {
 			if errors.Is(err, DemotedToFollower) {
 				break
 			}
-			log.Fatalf("Unexpected heartbeat error. err: %s", err)
+			slog.Error("Unexpected heartbeat error.",
+				slog.String("err", err.Error()))
+			os.Exit(1)
 		}
 	}
 }

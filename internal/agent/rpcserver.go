@@ -3,8 +3,9 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	sfrpc "github.com/peng225/starfish/internal/rpc"
@@ -31,12 +32,19 @@ func StartRPCServer(port int) {
 	// Start gRPC server.
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		slog.Error("Failed to listen.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
 	}
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	sfrpc.RegisterRaftServer(grpcServer, newRaftServer())
-	log.Fatal(grpcServer.Serve(lis))
+	err = grpcServer.Serve(lis)
+	if err != nil {
+		slog.Error("grpcServer.Serve failed.",
+			slog.String("err", err.Error()))
+		os.Exit(1)
+	}
 }
 
 func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendEntriesRequest) (*sfrpc.AppendEntriesReply, error) {
@@ -53,7 +61,9 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		if vstate.role == Candidate {
 			transitionToFollower()
 		} else if vstate.role == Leader {
-			log.Fatalf("Another leader found in the same term. ID: %d", req.LeaderID)
+			slog.Error("Another leader found in the same term.",
+				slog.Int("ID", int(req.LeaderID)))
+			os.Exit(1)
 		}
 	case req.Term > pstore.CurrentTerm():
 		transitionToFollower()
@@ -84,8 +94,10 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 				LockHolderID: entry.LockHolderID,
 			})
 		} else if pstore.LogSize() < entryIndex {
-			log.Fatalf("Invalid entry index. pstore.LogSize(): %d, entryIndex: %d",
-				pstore.LogSize(), entryIndex)
+			slog.Error("Invalid entry index.",
+				slog.Int64("logSize", pstore.LogSize()),
+				slog.Int64("entryIndex", entryIndex))
+			os.Exit(1)
 		}
 		// When you reach here, the log has already been appended,
 		// and no operation is executed to make the gRPC call idempotent.

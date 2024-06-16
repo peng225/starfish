@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"math/rand"
 	"time"
 
@@ -13,14 +13,15 @@ import (
 func election() {
 	for {
 		if vstate.role == Follower {
-			log.Println("Found that I have become a follower.")
+			slog.Info("Found that I have become a follower.")
 			return
 		}
-		log.Println("Election start.")
+		slog.Info("Election start.")
 		electionTimeoutBase = time.Now()
 		pstore.PutVotedFor(vstate.id)
 		pstore.PutCurrentTerm(pstore.CurrentTerm() + 1)
-		// TODO: save votedFor to drive.
+		slog.Info("Updated the current term.",
+			slog.Int64("term", pstore.CurrentTerm()))
 		voteResult := make(chan bool, len(grpcEndpoints))
 		ctx, cancel := context.WithCancelCause(context.Background())
 		for i := range grpcEndpoints {
@@ -41,13 +42,17 @@ func election() {
 					LastLogTerm:  llt,
 				})
 				if err != nil {
-					log.Printf("RequestVote RPC for %s failed. err: %s", grpcEndpoints[i], err.Error())
+					slog.Error("RequestVote RPC failed.",
+						slog.String("dest", grpcEndpoints[i]),
+						slog.String("err", err.Error()))
 					voteResult <- false
 					return
 				}
 				if reply.Term > pstore.CurrentTerm() {
-					log.Printf("Found larger term in the response of RequestVote RPC for %s. term: %d, response term: %d",
-						grpcEndpoints[i], pstore.CurrentTerm(), reply.Term)
+					slog.Info("Found larger term in the response of RequestVote RPC.",
+						slog.String("dest", grpcEndpoints[i]),
+						slog.Int64("term", pstore.CurrentTerm()),
+						slog.Int64("responseTerm", reply.Term))
 					cancel(DemotedToFollower)
 					transitionToFollower()
 					pstore.PutCurrentTerm(reply.Term)
@@ -62,18 +67,18 @@ func election() {
 		for {
 			select {
 			case <-time.After(electionTimeout + r):
-				log.Println("Election timeout!")
+				slog.Info("Election timeout!")
 				cancel(errors.New("election timeout"))
 				break WaitForVote
 			case res := <-voteResult:
 				if res {
 					voteCount++
-					log.Println("Got a vote.")
+					slog.Info("Got a vote.")
 					if voteCount > len(grpcEndpoints)/2 {
 						err := transitionToLeader()
 						if err != nil {
 							// TODO: What is the expectation?
-							// log.Printf("Failed to promote to the leader. err: %s", err)
+							// slog.Error("Failed to promote to the leader. err: %s", err)
 							// break WaitForVote
 						}
 						return

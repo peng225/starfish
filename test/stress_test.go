@@ -3,7 +3,6 @@ package test
 import (
 	"bytes"
 	"io"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -20,14 +19,10 @@ import (
 func TestStress(t *testing.T) {
 	configFileName := "../config.yaml"
 	data, err := os.ReadFile(configFileName)
-	if err != nil {
-		log.Fatalf(`Failed to open file "%s". err: %s`, configFileName, err)
-	}
+	require.NoError(t, err)
 	c := config{}
 	err = yaml.Unmarshal(data, &c)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal the config file. err: %s", err)
-	}
+	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
 	clientCount := 16
