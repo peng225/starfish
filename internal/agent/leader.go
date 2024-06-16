@@ -121,6 +121,9 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 				errCh <- err
 				return err
 			} else if errors.Is(err, LogMismatch) {
+				slog.Info("Log mismatch found.",
+					slog.Int("dest", int(destID)),
+					slog.Int64("nextIndex", vlstate.nextIndex[destID]))
 				vlstate.nextIndex[destID]--
 			} else {
 				time.Sleep(200 * time.Millisecond)

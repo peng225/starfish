@@ -180,6 +180,11 @@ func updateCommitIndex(ci int64) {
 func applyLog(logIndex int64) {
 	defer func() { vstate.lastApplied++ }()
 	log := pstore.LogEntry(logIndex)
+	if log == nil {
+		slog.Error("Invalid log index.", slog.Int64("logIndex", logIndex),
+			slog.Int64("logSisze", pstore.LogSize()))
+		os.Exit(1)
+	}
 	if log.LockHolderID == NoopAgentID {
 		return
 	}
