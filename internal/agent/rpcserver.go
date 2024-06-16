@@ -129,12 +129,12 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	if pstore.VotedFor() >= 0 && req.CandidateID != pstore.VotedFor() {
 		return reply, nil
 	}
-	llt := int64(-1)
+	llTerm := int64(-1)
 	if pstore.LogSize() > 0 {
-		llt = pstore.LogEntry(pstore.LogSize() - 1).Term
+		llTerm = pstore.LogEntry(pstore.LogSize() - 1).Term
 	}
-	if req.LastLogTerm < llt ||
-		(req.LastLogTerm == llt &&
+	if req.LastLogTerm < llTerm ||
+		(req.LastLogTerm == llTerm &&
 			req.LastLogIndex < pstore.LogSize()-1) {
 		return reply, nil
 	}
