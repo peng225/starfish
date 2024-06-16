@@ -67,7 +67,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstore.AppendLog(logEntry)
 
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
-	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
+	for i := 0; i < len(grpcEndpoints)/2; i++ {
 		err := <-errCh
 		if err != nil {
 			return err
