@@ -56,9 +56,14 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 
 	switch {
 	case req.Term < pstore.CurrentTerm():
+		slog.Warn("req.Term is smaller than my term.",
+			slog.Int64("requestTerm", req.Term),
+			slog.Int64("term", pstore.CurrentTerm()))
 		return reply, nil
 	case req.Term == pstore.CurrentTerm():
 		if vstate.role == Candidate {
+			slog.Info("Got request with the same term when I am a candidate.",
+				slog.Int64("term", pstore.CurrentTerm()))
 			transitionToFollower()
 		} else if vstate.role == Leader {
 			slog.Error("Another leader found in the same term.",
@@ -66,6 +71,9 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 			os.Exit(1)
 		}
 	case req.Term > pstore.CurrentTerm():
+		slog.Info("req.Term is larger than my term.",
+			slog.Int64("requestTerm", req.Term),
+			slog.Int64("term", pstore.CurrentTerm()))
 		transitionToFollower()
 	}
 	pstore.PutCurrentTerm(req.Term)
@@ -73,8 +81,16 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	reply.Term = pstore.CurrentTerm()
 
 	//Check the previous log entry match.
-	if pstore.LogSize()-1 < req.PrevLogIndex ||
-		(req.PrevLogIndex > 0 && pstore.LogEntry(req.PrevLogIndex).Term != req.PrevLogTerm) {
+	if pstore.LogSize()-1 < req.PrevLogIndex {
+		slog.Warn("The previous log does not match.",
+			slog.Int64("requestPrevLogIndex", req.PrevLogIndex),
+			slog.Int64("lastLogIndex", pstore.LogSize()-1))
+		return reply, nil
+	} else if req.PrevLogIndex >= 0 && pstore.LogEntry(req.PrevLogIndex).Term != req.PrevLogTerm {
+		slog.Warn("The previous log does not match.",
+			slog.Int64("requestPrevLogIndex", req.PrevLogIndex),
+			slog.Int64("requestPrevLogTerm", req.PrevLogTerm),
+			slog.Int64("prevLogTerm", pstore.LogEntry(req.PrevLogIndex).Term))
 		return reply, nil
 	}
 
@@ -84,6 +100,11 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		// remove the mismatched entries.
 		if entryIndex <= pstore.LogSize()-1 &&
 			pstore.LogEntry(entryIndex).Term != req.Term {
+			slog.Warn("An entry with the same index found, but with the different term.",
+				slog.Int64("entryIndex", entryIndex),
+				slog.Int64("lastLogIndex", pstore.LogSize()-1),
+				slog.Int64("entryTerm", pstore.LogEntry(entryIndex).Term),
+				slog.Int64("requestTerm", req.Term))
 			pstore.CutOffLogTail(entryIndex)
 			break
 		}
@@ -117,6 +138,9 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	}
 	switch {
 	case req.Term < pstore.CurrentTerm():
+		slog.Warn("req.Term is smaller than my term.",
+			slog.Int64("requestTerm", req.Term),
+			slog.Int64("term", pstore.CurrentTerm()))
 		return reply, nil
 	case req.Term > pstore.CurrentTerm():
 		pstore.PutVotedFor(InvalidAgentID)
@@ -127,6 +151,8 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	reply.Term = pstore.CurrentTerm()
 
 	if pstore.VotedFor() >= 0 && req.CandidateID != pstore.VotedFor() {
+		slog.Warn("Already voted for someone else. Reject.",
+			slog.Int("votedFor", int(pstore.VotedFor())))
 		return reply, nil
 	}
 	llTerm := int64(-1)
@@ -136,6 +162,11 @@ func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVo
 	if req.LastLogTerm < llTerm ||
 		(req.LastLogTerm == llTerm &&
 			req.LastLogIndex < pstore.LogSize()-1) {
+		slog.Warn("Candidate's last log is too old. Reject.",
+			slog.Int64("requestLastLogTerm", req.LastLogTerm),
+			slog.Int64("lastLogTerm", llTerm),
+			slog.Int64("requestLastLogIndex", req.LastLogIndex),
+			slog.Int64("lastLogIndex", pstore.LogSize()-1))
 		return reply, nil
 	}
 

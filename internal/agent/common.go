@@ -107,8 +107,12 @@ func transitionToLeader() error {
 	if vstate.role == Leader {
 		return nil
 	}
+
 	slog.Info("Try to transition to leader.",
 		slog.Int64("term", pstore.CurrentTerm()))
+	// Initialize leader-related variables.
+	// This is required to send a no-op entry.
+	initLeaderOnPromotion()
 	// Here, we want to commit the entries in the past terms.
 	// However, the Rust algorithm allows the leader
 	// only to commit entries of its own term.
@@ -123,7 +127,6 @@ func transitionToLeader() error {
 		return err
 	}
 
-	initLeaderOnPromotion()
 	vstate.role = Leader
 	vstate.currentLeaderID = vstate.id
 	go heartBeatDaemon()

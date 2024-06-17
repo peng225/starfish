@@ -67,7 +67,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstore.AppendLog(logEntry)
 
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
-	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
+	for i := 0; i < len(grpcEndpoints)/2; i++ {
 		err := <-errCh
 		if err != nil {
 			return err
@@ -149,13 +149,31 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	}
 	entries := make([]*sfrpc.LogEntry, 0)
 	for i := vlstate.nextIndex[destID]; i < vlstate.nextIndex[destID]+entryCount; i++ {
+		e := pstore.LogEntry(i)
+		if e == nil {
+			slog.Error("Invalid log entry.",
+				slog.Int("dest", int(destID)),
+				slog.Int64("entryCount", entryCount),
+				slog.Int64("index", i),
+				slog.Int64("logSize", pstore.LogSize()))
+			os.Exit(1)
+		}
 		entries = append(entries, &sfrpc.LogEntry{
-			LockHolderID: pstore.LogEntry(i).LockHolderID,
+			LockHolderID: e.LockHolderID,
 		})
 	}
 	plt := int64(-1)
 	if vlstate.nextIndex[destID] > 0 {
-		plt = pstore.LogEntry(vlstate.nextIndex[destID] - 1).Term
+		e := pstore.LogEntry(vlstate.nextIndex[destID] - 1)
+		if e == nil {
+			slog.Error("Invalid log entry.",
+				slog.Int("dest", int(destID)),
+				slog.Int64("entryCount", entryCount),
+				slog.Int64("index", vlstate.nextIndex[destID]-1),
+				slog.Int64("logSize", pstore.LogSize()))
+			os.Exit(1)
+		}
+		plt = e.Term
 	}
 	reply, err := rpcClients[destID].AppendEntries(ctx, &sfrpc.AppendEntriesRequest{
 		Term:         pstore.CurrentTerm(),
