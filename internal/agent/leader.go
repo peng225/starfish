@@ -113,6 +113,13 @@ func logSenderDaemon(destID int32) {
 func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 	destID int32, endIndex int64, errCh chan error) error {
 	for {
+		if endIndex < vlstate.nextIndex[destID] {
+			slog.Error("nextIndex must not be larger than endIndex.",
+				slog.Int("dest", int(destID)),
+				slog.Int64("endIndex", endIndex),
+				slog.Int64("nextIndex", vlstate.nextIndex[destID]))
+			os.Exit(1)
+		}
 		err := sendLog(ctx, destID, endIndex-vlstate.nextIndex[destID])
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {
@@ -125,6 +132,11 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 					slog.Int("dest", int(destID)),
 					slog.Int64("nextIndex", vlstate.nextIndex[destID]))
 				vlstate.nextIndex[destID]--
+				if vlstate.nextIndex[destID] < 0 {
+					slog.Error("nextIndex must not be a negative number.",
+						slog.Int("dest", int(destID)),
+						slog.Int64("nextIndex", vlstate.nextIndex[destID]))
+				}
 			} else {
 				time.Sleep(200 * time.Millisecond)
 			}
@@ -205,7 +217,7 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 
 func broadcastHeartBeat() {
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
-	for i := 0; i < len(grpcEndpoints)/2+1; i++ {
+	for i := 0; i < len(grpcEndpoints)/2; i++ {
 		err := <-errCh
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {
