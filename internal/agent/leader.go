@@ -74,7 +74,7 @@ func AppendLog(logEntry *LogEntry) error {
 		}
 	}
 
-	updateCommitIndex(vstate.commitIndex + 1)
+	updateCommitIndex(pstore.LogSize() - 1)
 	return nil
 }
 
