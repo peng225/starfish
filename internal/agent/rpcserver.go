@@ -105,6 +105,12 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 				slog.Int64("lastLogIndex", pstore.LogSize()-1),
 				slog.Int64("entryTerm", pstore.LogEntry(entryIndex).Term),
 				slog.Int64("requestTerm", req.Term))
+			if entryIndex <= vstate.commitIndex {
+				slog.Error("Commited log entries are going to be deleted.",
+					slog.Int64("entryIndex", entryIndex),
+					slog.Int64("commitIndex", vstate.commitIndex))
+				os.Exit(1)
+			}
 			pstore.CutOffLogTail(entryIndex)
 			break
 		}
