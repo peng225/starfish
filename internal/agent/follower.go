@@ -15,7 +15,7 @@ func checkElectionTimeout() {
 		if time.Since(electionTimeoutBase) > electionTimeout+r {
 			slog.Info("Election timeout detected.")
 			transitionToCandidate()
-			go election()
+			go electionWithRetry()
 			break
 		}
 	}
