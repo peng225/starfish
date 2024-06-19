@@ -117,7 +117,7 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		// If the entry does not exist, it is appended.
 		if pstore.LogSize() == entryIndex {
 			pstore.AppendLog(&LogEntry{
-				Term:         req.Term,
+				Term:         entry.Term,
 				LockHolderID: entry.LockHolderID,
 			})
 		} else if pstore.LogSize() < entryIndex {
