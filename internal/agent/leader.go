@@ -171,6 +171,7 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 			os.Exit(1)
 		}
 		entries = append(entries, &sfrpc.LogEntry{
+			Term:         e.Term,
 			LockHolderID: e.LockHolderID,
 		})
 	}

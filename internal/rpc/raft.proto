@@ -36,5 +36,6 @@ message RequestVoteReply {
 }
 
 message LogEntry {
-    int32 lockHolderID = 1;
+    int64 term = 1;
+    int32 lockHolderID = 2;
 }
