@@ -17,10 +17,6 @@ type RaftServerImpl struct {
 	sfrpc.UnimplementedRaftServer
 }
 
-const (
-	electionTimeout = 2 * time.Second
-)
-
 var (
 	electionTimeoutBase time.Time
 )
