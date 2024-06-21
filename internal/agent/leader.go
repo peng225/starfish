@@ -136,6 +136,7 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 					slog.Error("nextIndex must not be a negative number.",
 						slog.Int("dest", int(destID)),
 						slog.Int64("nextIndex", vlstate.nextIndex[destID]))
+					os.Exit(1)
 				}
 			} else {
 				time.Sleep(200 * time.Millisecond)
