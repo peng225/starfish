@@ -113,12 +113,20 @@ func logSenderDaemon(destID int32) {
 func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 	destID int32, endIndex int64, errCh chan error) error {
 	for {
+		if vstate.role == Follower {
+			slog.Info("Found that I have become a follower.")
+			cancel(DemotedToFollower)
+			errCh <- DemotedToFollower
+			return DemotedToFollower
+		}
 		if endIndex < vlstate.nextIndex[destID] {
-			slog.Error("nextIndex must not be larger than endIndex.",
+			slog.Info("nextIndex found to be larger than endIndex.",
 				slog.Int("dest", int(destID)),
 				slog.Int64("endIndex", endIndex),
 				slog.Int64("nextIndex", vlstate.nextIndex[destID]))
-			os.Exit(1)
+			cancel(DemotedToFollower)
+			errCh <- DemotedToFollower
+			return DemotedToFollower
 		}
 		err := sendLog(ctx, destID, endIndex-vlstate.nextIndex[destID])
 		if err != nil {
@@ -136,6 +144,7 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 					slog.Error("nextIndex must not be a negative number.",
 						slog.Int("dest", int(destID)),
 						slog.Int64("nextIndex", vlstate.nextIndex[destID]))
+					os.Exit(1)
 				}
 			} else {
 				time.Sleep(200 * time.Millisecond)
@@ -188,8 +197,9 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 		}
 		plt = e.Term
 	}
+	cTerm := pstore.CurrentTerm()
 	reply, err := rpcClients[destID].AppendEntries(ctx, &sfrpc.AppendEntriesRequest{
-		Term:         pstore.CurrentTerm(),
+		Term:         cTerm,
 		LeaderID:     vstate.id,
 		PrevLogIndex: vlstate.nextIndex[destID] - 1,
 		PrevLogTerm:  plt,
@@ -205,9 +215,7 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	if !reply.Success {
 		dedupLogger.Error("AppendEntries RPC failed.",
 			slog.String("dest", grpcEndpoints[destID]))
-		if reply.Term > pstore.CurrentTerm() {
-			transitionToFollower()
-			pstore.PutCurrentTerm(reply.Term)
+		if reply.Term > cTerm {
 			return DemotedToFollower
 		}
 		return LogMismatch

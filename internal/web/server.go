@@ -7,14 +7,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/peng225/starfish/internal/agent"
+	"github.com/peng225/starfish/internal/gmutex"
 )
 
 var (
-	mu           sync.Mutex
 	webEndpoints []string
 )
 
@@ -25,8 +24,8 @@ func Init(we []string) {
 func LockHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LockHandler start.")
 	defer slog.Debug("LockHandler end.")
-	mu.Lock()
-	defer mu.Unlock()
+	gmutex.Lock()
+	defer gmutex.Unlock()
 
 	if !agent.IsLeader() {
 		lid := agent.LeaderID()
@@ -101,8 +100,8 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("UnlockHandler start.")
 	defer slog.Debug("UnlockHandler end.")
-	mu.Lock()
-	defer mu.Unlock()
+	gmutex.Lock()
+	defer gmutex.Unlock()
 
 	if !agent.IsLeader() {
 		lid := agent.LeaderID()

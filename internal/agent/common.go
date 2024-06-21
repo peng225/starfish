@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/peng225/deduplog"
@@ -50,8 +49,6 @@ var (
 
 	grpcEndpoints []string
 	rpcClients    []sfrpc.RaftClient
-
-	muStateTransition sync.Mutex
 
 	notifyLogApply chan struct{}
 	dedupLogger    *slog.Logger
@@ -113,8 +110,6 @@ func Init(id int32, ge []string, ps PersistentStore) {
 }
 
 func transitionToLeader() error {
-	muStateTransition.Lock()
-	defer muStateTransition.Unlock()
 	if vstate.role == Leader {
 		return nil
 	}
@@ -147,8 +142,6 @@ func transitionToLeader() error {
 }
 
 func transitionToFollower() {
-	muStateTransition.Lock()
-	defer muStateTransition.Unlock()
 	if vstate.role == Follower {
 		return
 	}
@@ -158,8 +151,6 @@ func transitionToFollower() {
 }
 
 func transitionToCandidate() {
-	muStateTransition.Lock()
-	defer muStateTransition.Unlock()
 	if vstate.role == Candidate {
 		return
 	}

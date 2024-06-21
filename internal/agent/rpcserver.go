@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/peng225/starfish/internal/gmutex"
 	sfrpc "github.com/peng225/starfish/internal/rpc"
 	"google.golang.org/grpc"
 )
@@ -48,6 +49,8 @@ func StartRPCServer(port int) {
 }
 
 func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendEntriesRequest) (*sfrpc.AppendEntriesReply, error) {
+	gmutex.Lock()
+	defer gmutex.Unlock()
 	electionTimeoutBase = time.Now()
 	reply := &sfrpc.AppendEntriesReply{
 		Term:    pstore.CurrentTerm(),
@@ -99,12 +102,12 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		// If the corresponding entry exists but does not have the same term,
 		// remove the mismatched entries.
 		if entryIndex <= pstore.LogSize()-1 &&
-			pstore.LogEntry(entryIndex).Term != req.Term {
+			pstore.LogEntry(entryIndex).Term != entry.Term {
 			slog.Warn("An entry with the same index found, but with the different term.",
 				slog.Int64("entryIndex", entryIndex),
 				slog.Int64("lastLogIndex", pstore.LogSize()-1),
 				slog.Int64("entryTerm", pstore.LogEntry(entryIndex).Term),
-				slog.Int64("requestTerm", req.Term))
+				slog.Int64("requestEntryTerm", entry.Term))
 			if entryIndex <= vstate.commitIndex {
 				slog.Error("Commited log entries are going to be deleted.",
 					slog.Int64("entryIndex", entryIndex),
@@ -138,6 +141,8 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	return reply, nil
 }
 func (rsi *RaftServerImpl) RequestVote(ctx context.Context, req *sfrpc.RequestVoteRequest) (*sfrpc.RequestVoteReply, error) {
+	gmutex.Lock()
+	defer gmutex.Unlock()
 	reply := &sfrpc.RequestVoteReply{
 		Term:        pstore.CurrentTerm(),
 		VoteGranted: false,
