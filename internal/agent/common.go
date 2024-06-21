@@ -1,10 +1,13 @@
 package agent
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/peng225/deduplog"
 	sfrpc "github.com/peng225/starfish/internal/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -51,6 +54,7 @@ var (
 	muStateTransition sync.Mutex
 
 	notifyLogApply chan struct{}
+	dedupLogger    *slog.Logger
 )
 
 func init() {
@@ -86,6 +90,13 @@ func Init(id int32, ge []string, ps PersistentStore) {
 
 		rpcClients = append(rpcClients, sfrpc.NewRaftClient(conn))
 	}
+
+	dedupLogger = slog.New(deduplog.NewDedupHandler(context.Background(),
+		slog.Default().Handler(),
+		&deduplog.HandlerOptions{
+			HistoryRetentionPeriod: 2 * time.Second,
+			MaxHistoryCount:        deduplog.DefaultMaxHistoryCount,
+		}))
 
 	initLeader()
 
