@@ -18,8 +18,29 @@ import (
 )
 
 func sendSignal(t *testing.T, sig syscall.Signal, pid int) {
+	t.Helper()
 	err := syscall.Kill(pid, sig)
 	require.NoError(t, err)
+}
+
+func getAgentPIDs(t *testing.T) []int {
+	t.Helper()
+	cmd := exec.Command("pidof", "starfish")
+	var out strings.Builder
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pidsStr := strings.Split(out.String(), " ")
+	pids := make([]int, 0, len(pidsStr))
+	for _, pidStr := range pidsStr {
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+		require.NoError(t, err)
+		pids = append(pids, pid)
+	}
+	return pids
 }
 
 func TestSigStop(t *testing.T) {
@@ -47,21 +68,7 @@ func TestSigStop(t *testing.T) {
 		return true
 	}, 2*time.Second, 10*time.Microsecond)
 
-	cmd := exec.Command("pidof", "starfish")
-	var out strings.Builder
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	pidsStr := strings.Split(out.String(), " ")
-	pids := make([]int, 0, len(pidsStr))
-	for _, pidStr := range pidsStr {
-		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-		require.NoError(t, err)
-		pids = append(pids, pid)
-	}
+	pids := getAgentPIDs(t)
 
 	for _, pid := range pids {
 		sendSignal(t, syscall.SIGSTOP, pid)
