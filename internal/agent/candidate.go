@@ -73,7 +73,7 @@ func election() error {
 	}
 
 	voteCount := 0
-	r := time.Duration(rand.Intn(10)) * time.Second
+	r := time.Duration(rand.Intn(electionTimeoutRandMaxSec)) * time.Second
 	for {
 		select {
 		case <-time.After(electionTimeout + r):

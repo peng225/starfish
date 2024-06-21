@@ -9,7 +9,7 @@ import (
 func checkElectionTimeout() {
 	electionTimeoutBase = time.Now()
 	ticker := time.NewTicker(time.Microsecond * 100)
-	r := time.Duration(rand.Intn(10)) * time.Second
+	r := time.Duration(rand.Intn(electionTimeoutRandMaxSec)) * time.Second
 	for {
 		<-ticker.C
 		if time.Since(electionTimeoutBase) > electionTimeout+r {

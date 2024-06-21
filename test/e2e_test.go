@@ -22,14 +22,19 @@ type config struct {
 	GRPCEndpoints []string `yaml:"grpcEndpoints"`
 }
 
-// TODO: "Eventually" is needed for PUT requests, too.
-func TestLockAndUnlock(t *testing.T) {
-	configFileName := "../config.yaml"
-	data, err := os.ReadFile(configFileName)
+func readConfig(t *testing.T, fileName string) *config {
+	t.Helper()
+	data, err := os.ReadFile(fileName)
 	require.NoError(t, err)
 	c := config{}
 	err = yaml.Unmarshal(data, &c)
 	require.NoError(t, err)
+	return &c
+}
+
+// TODO: "Eventually" is needed for PUT requests, too.
+func TestLockAndUnlock(t *testing.T) {
+	c := readConfig(t, "../config.yaml")
 
 	// Check the initial status.
 	require.Eventually(t, func() bool {
@@ -38,7 +43,8 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
-		data, err = io.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
 		return true
@@ -59,7 +65,8 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
-		data, err = io.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, lockHolder1, string(data))
 		return true
@@ -89,7 +96,8 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
-		data, err = io.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
 		return true
