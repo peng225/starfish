@@ -61,8 +61,8 @@ func initLeaderOnPromotion() {
 }
 
 func AppendLog(logEntry *LogEntry) error {
-	slog.Info("AppendLog start.")
-	defer slog.Info("AppendLog end.")
+	slog.Debug("AppendLog start.")
+	defer slog.Debug("AppendLog end.")
 	logEntry.Term = pstore.CurrentTerm()
 	pstore.AppendLog(logEntry)
 
@@ -197,13 +197,13 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 		LeaderCommit: vstate.commitIndex,
 	})
 	if err != nil {
-		slog.Error("AppendEntries RPC failed.",
+		dedupLogger.Error("AppendEntries RPC failed.",
 			slog.String("dest", grpcEndpoints[destID]),
 			slog.String("err", err.Error()))
 		return err
 	}
 	if !reply.Success {
-		slog.Error("AppendEntries RPC failed.",
+		dedupLogger.Error("AppendEntries RPC failed.",
 			slog.String("dest", grpcEndpoints[destID]))
 		if reply.Term > pstore.CurrentTerm() {
 			transitionToFollower()

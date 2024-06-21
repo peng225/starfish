@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -9,9 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/peng225/deduplog"
 	"github.com/peng225/rlog"
 
 	"github.com/peng225/starfish/internal/agent"
@@ -43,14 +40,9 @@ func getPort(endpoint string) int {
 
 func main() {
 	// Set up logger.
-	logger := slog.New(deduplog.NewDedupHandler(context.Background(),
-		rlog.NewRawTextHandler(os.Stdout, &rlog.HandlerOptions{
-			AddSource: true,
-		}),
-		&deduplog.HandlerOptions{
-			HistoryRetentionPeriod: 1 * time.Second,
-			MaxHistoryCount:        deduplog.DefaultMaxHistoryCount,
-		}))
+	logger := slog.New(rlog.NewRawTextHandler(os.Stdout, &rlog.HandlerOptions{
+		AddSource: true,
+	}))
 	slog.SetDefault(logger)
 
 	var id int
