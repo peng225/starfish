@@ -5,7 +5,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -13,16 +12,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestStress(t *testing.T) {
-	configFileName := "../config.yaml"
-	data, err := os.ReadFile(configFileName)
-	require.NoError(t, err)
-	c := config{}
-	err = yaml.Unmarshal(data, &c)
-	require.NoError(t, err)
+	c := readConfig(t, "../config.yaml")
 
 	wg := sync.WaitGroup{}
 	clientCount := 16
@@ -48,7 +41,7 @@ func TestStress(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					return false
 				}
-				data, err = io.ReadAll(resp.Body)
+				data, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				assert.Equal(t, lockHolder, string(data))
 				return true
