@@ -43,6 +43,7 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
+		defer resp.Body.Close()
 		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
@@ -64,6 +65,7 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
+		defer resp.Body.Close()
 		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, lockHolder1, string(data))
@@ -94,6 +96,7 @@ func TestLockAndUnlock(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
+		defer resp.Body.Close()
 		data, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))

@@ -41,6 +41,7 @@ func TestStress(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					return false
 				}
+				defer resp.Body.Close()
 				data, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				assert.Equal(t, lockHolder, string(data))
