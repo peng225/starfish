@@ -214,7 +214,9 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	}
 	if !reply.Success {
 		dedupLogger.Error("AppendEntries RPC failed.",
-			slog.String("dest", grpcEndpoints[destID]))
+			slog.String("dest", grpcEndpoints[destID]),
+			slog.Int64("replyTerm", reply.Term),
+			slog.Int64("term", cTerm))
 		if reply.Term > cTerm {
 			return DemotedToFollower
 		}

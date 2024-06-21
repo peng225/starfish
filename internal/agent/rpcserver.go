@@ -60,21 +60,24 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 	switch {
 	case req.Term < pstore.CurrentTerm():
 		slog.Warn("req.Term is smaller than my term.",
+			slog.Int("leaderID", int(req.LeaderID)),
 			slog.Int64("requestTerm", req.Term),
 			slog.Int64("term", pstore.CurrentTerm()))
 		return reply, nil
 	case req.Term == pstore.CurrentTerm():
 		if vstate.role == Candidate {
 			slog.Info("Got request with the same term when I am a candidate.",
+				slog.Int("leaderID", int(req.LeaderID)),
 				slog.Int64("term", pstore.CurrentTerm()))
 			transitionToFollower()
 		} else if vstate.role == Leader {
 			slog.Error("Another leader found in the same term.",
-				slog.Int("ID", int(req.LeaderID)))
+				slog.Int("leaderID", int(req.LeaderID)))
 			os.Exit(1)
 		}
 	case req.Term > pstore.CurrentTerm():
 		slog.Info("req.Term is larger than my term.",
+			slog.Int("leaderID", int(req.LeaderID)),
 			slog.Int64("requestTerm", req.Term),
 			slog.Int64("term", pstore.CurrentTerm()))
 		transitionToFollower()
