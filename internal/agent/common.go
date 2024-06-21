@@ -147,6 +147,11 @@ func transitionToFollower() {
 	}
 	slog.Info("Transition to follower.")
 	vstate.role = Follower
+	for _, queue := range sendLogQueues {
+		for len(queue) != 0 {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
 	go checkElectionTimeout()
 }
 
