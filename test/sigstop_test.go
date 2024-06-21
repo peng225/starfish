@@ -22,7 +22,7 @@ func sendSignal(t *testing.T, sig syscall.Signal, pid int) {
 	require.NoError(t, err)
 }
 
-func TestLeaderSigStop(t *testing.T) {
+func TestSigStop(t *testing.T) {
 	c := readConfig(t, "../config.yaml")
 
 	lockHolder := strconv.Itoa(1)
