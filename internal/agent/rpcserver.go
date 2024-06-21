@@ -102,12 +102,12 @@ func (rsi *RaftServerImpl) AppendEntries(ctx context.Context, req *sfrpc.AppendE
 		// If the corresponding entry exists but does not have the same term,
 		// remove the mismatched entries.
 		if entryIndex <= pstore.LogSize()-1 &&
-			pstore.LogEntry(entryIndex).Term != req.Term {
+			pstore.LogEntry(entryIndex).Term != entry.Term {
 			slog.Warn("An entry with the same index found, but with the different term.",
 				slog.Int64("entryIndex", entryIndex),
 				slog.Int64("lastLogIndex", pstore.LogSize()-1),
 				slog.Int64("entryTerm", pstore.LogEntry(entryIndex).Term),
-				slog.Int64("requestTerm", req.Term))
+				slog.Int64("requestEntryTerm", entry.Term))
 			if entryIndex <= vstate.commitIndex {
 				slog.Error("Commited log entries are going to be deleted.",
 					slog.Int64("entryIndex", entryIndex),
