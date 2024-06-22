@@ -62,7 +62,11 @@ func lockRequest(t *testing.T, lockHolder int, server string) {
 			t.Logf("Lock request failed. err: %s", err)
 			return false
 		}
-		return resp.StatusCode == http.StatusOK
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
+			return false
+		}
+		return true
 	}, 20*time.Second, 2*time.Second)
 }
 
@@ -78,7 +82,11 @@ func unlockRequest(t *testing.T, lockHolder int, server string) {
 			t.Logf("Unlock request failed. err: %s", err)
 			return false
 		}
-		return resp.StatusCode == http.StatusOK
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
+			return false
+		}
+		return true
 	}, 20*time.Second, 2*time.Second)
 }
 
