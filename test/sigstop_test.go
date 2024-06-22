@@ -91,4 +91,14 @@ func TestSigStop(t *testing.T) {
 			}, 20*time.Second, 2*time.Second)
 		}
 	}
+
+	require.Eventually(t, func() bool {
+		req, err := http.NewRequest(http.MethodPut,
+			c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/unlock",
+			bytes.NewBuffer([]byte(lockHolder)))
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		return resp.StatusCode == http.StatusOK
+	}, 20*time.Second, 2*time.Second)
 }
