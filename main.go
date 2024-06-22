@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -47,8 +48,10 @@ func main() {
 
 	var id int
 	var configFileName string
+	var pstoreDir string
 	flag.IntVar(&id, "id", -1, "Agent ID")
 	flag.StringVar(&configFileName, "config", "", "Config file name")
+	flag.StringVar(&pstoreDir, "pstore-dir", "", "Persistent store directory")
 	flag.Parse()
 
 	if id < 0 {
@@ -71,7 +74,8 @@ func main() {
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
-	fs := store.MustNewFileStore(fmt.Sprintf("filestore-%d.bin", id))
+	pstoreFileFullPath := path.Join(pstoreDir, fmt.Sprintf("filestore-%d.bin", id))
+	fs := store.MustNewFileStore(pstoreFileFullPath)
 	agent.Init(int32(id), c.GRPCEndpoints, fs)
 
 	// Start gRPC server.
