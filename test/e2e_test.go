@@ -45,8 +45,16 @@ func checkLockHolder(t *testing.T, lockHolder int, server string) {
 			return false
 		}
 		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		return strconv.Itoa(lockHolder) == string(data)
+		if err != nil {
+			t.Logf("Failed to read HTTP response body. err: %s", err)
+			return false
+		}
+		if strconv.Itoa(lockHolder) != string(data) {
+			t.Logf("Unexpected lock holder. expected: %s, actual: %s",
+				strconv.Itoa(lockHolder), string(data))
+			return false
+		}
+		return true
 	}, 20*time.Second, 2*time.Second)
 }
 
