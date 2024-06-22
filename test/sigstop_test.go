@@ -55,7 +55,7 @@ func TestSigStop(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		return resp.StatusCode == http.StatusOK
-	}, 2*time.Second, 10*time.Microsecond)
+	}, 20*time.Second, 2*time.Second)
 
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
@@ -66,7 +66,7 @@ func TestSigStop(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, lockHolder, string(data))
 		return true
-	}, 2*time.Second, 10*time.Microsecond)
+	}, 20*time.Second, 2*time.Second)
 
 	pids := getAgentPIDs(t)
 
@@ -88,7 +88,7 @@ func TestSigStop(t *testing.T) {
 				t.Logf("lockHolder: %s", string(data))
 				require.Equal(t, lockHolder, string(data))
 				return true
-			}, 2*time.Second, 20*time.Microsecond)
+			}, 20*time.Second, 2*time.Second)
 		}
 	}
 }

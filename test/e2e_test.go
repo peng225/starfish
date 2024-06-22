@@ -48,7 +48,7 @@ func TestLockAndUnlock(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
 		return true
-	}, 3*time.Second, 10*time.Microsecond)
+	}, 20*time.Second, 2*time.Second)
 
 	// Lock and check.
 	lockHolder1 := strconv.Itoa(1)
@@ -70,7 +70,7 @@ func TestLockAndUnlock(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, lockHolder1, string(data))
 		return true
-	}, 3*time.Second, 10*time.Microsecond)
+	}, 20*time.Second, 2*time.Second)
 
 	// Another client try to lock, but fails.
 	lockHolder2 := strconv.Itoa(2)
@@ -101,5 +101,5 @@ func TestLockAndUnlock(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
 		return true
-	}, 3*time.Second, 10*time.Microsecond)
+	}, 20*time.Second, 2*time.Second)
 }

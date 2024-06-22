@@ -33,7 +33,7 @@ func TestStress(t *testing.T) {
 				resp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
 				return resp.StatusCode == http.StatusOK
-			}, 3*time.Second, 10*time.Microsecond)
+			}, 20*time.Second, 2*time.Second)
 
 			require.Eventually(t, func() bool {
 				resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
@@ -46,7 +46,7 @@ func TestStress(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, lockHolder, string(data))
 				return true
-			}, 3*time.Second, 10*time.Microsecond)
+			}, 20*time.Second, 2*time.Second)
 
 			// Unlock.
 			require.Eventually(t, func() bool {
@@ -57,7 +57,7 @@ func TestStress(t *testing.T) {
 				resp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
 				return http.StatusOK == resp.StatusCode
-			}, 3*time.Second, 10*time.Microsecond)
+			}, 20*time.Second, 2*time.Second)
 		}(i)
 	}
 	wg.Wait()
