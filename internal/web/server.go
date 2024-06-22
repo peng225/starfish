@@ -30,9 +30,12 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	if !agent.IsLeader() {
 		lid := agent.LeaderID()
 		if lid == agent.InvalidAgentID {
+			slog.Warn("Currently, there is no leader.")
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
+			slog.Warn("I am not a leader.",
+				slog.Int("leaderID", int(lid)))
 			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
 		}
 		return
@@ -41,6 +44,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	i := 0
 	for agent.PendingApplyLogExist() {
 		if i == 3 {
+			slog.Warn("Pending requests exist.")
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
@@ -106,9 +110,12 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	if !agent.IsLeader() {
 		lid := agent.LeaderID()
 		if lid == agent.InvalidAgentID {
+			slog.Warn("Currently, there is no leader.")
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
+			slog.Warn("I am not a leader.",
+				slog.Int("leaderID", int(lid)))
 			http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
 		}
 		return
@@ -122,6 +129,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	i := 0
 	for agent.PendingApplyLogExist() {
 		if i == 3 {
+			slog.Warn("Pending requests exist.")
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
