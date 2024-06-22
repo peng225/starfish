@@ -12,9 +12,9 @@ proto:
 
 .PHONY: run
 run: $(STARFISH)
-	$(STARFISH) -id 0 -config config.yaml &
-	$(STARFISH) -id 1 -config config.yaml &
-	$(STARFISH) -id 2 -config config.yaml &
+	$(STARFISH) -id 0 -config config.yaml -pstore-dir /tmp &
+	$(STARFISH) -id 1 -config config.yaml -pstore-dir /tmp &
+	$(STARFISH) -id 2 -config config.yaml -pstore-dir /tmp &
 
 .PHONY: test
 test: $(STARFISH)
