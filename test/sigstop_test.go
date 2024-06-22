@@ -1,11 +1,8 @@
 package test
 
 import (
-	"bytes"
-	"io"
 	"log"
 	"math/rand"
-	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -13,40 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func sendSignal(t *testing.T, sig syscall.Signal, pid int) {
+	t.Helper()
 	err := syscall.Kill(pid, sig)
 	require.NoError(t, err)
 }
 
-func TestSigStop(t *testing.T) {
-	c := readConfig(t, "../config.yaml")
-
-	lockHolder := strconv.Itoa(1)
-	require.Eventually(t, func() bool {
-		req, err := http.NewRequest(http.MethodPut,
-			c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/lock",
-			bytes.NewBuffer([]byte(lockHolder)))
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		return resp.StatusCode == http.StatusOK
-	}, 2*time.Second, 10*time.Microsecond)
-
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, lockHolder, string(data))
-		return true
-	}, 2*time.Second, 10*time.Microsecond)
-
+func getAgentPIDs(t *testing.T) []int {
+	t.Helper()
 	cmd := exec.Command("pidof", "starfish")
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -62,26 +36,28 @@ func TestSigStop(t *testing.T) {
 		require.NoError(t, err)
 		pids = append(pids, pid)
 	}
+	return pids
+}
+
+func TestSigStop(t *testing.T) {
+	c := readConfig(t, "../config.yaml")
+
+	lockHolder := 1
+	lockRequest(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	checkLockHolder(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+
+	pids := getAgentPIDs(t)
 
 	for _, pid := range pids {
 		sendSignal(t, syscall.SIGSTOP, pid)
 		time.Sleep(10 * time.Second)
 		sendSignal(t, syscall.SIGCONT, pid)
 		for _, endpoint := range c.WebEndpoints {
-			require.Eventually(t, func() bool {
-				t.Logf("Stopped PID: %d", pid)
-				t.Logf("endpoint: %s", endpoint)
-				resp, err := http.Get(endpoint + "/lock")
-				require.NoError(t, err)
-				defer resp.Body.Close()
-				t.Logf("statusCode: %d", resp.StatusCode)
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-				data, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				t.Logf("lockHolder: %s", string(data))
-				require.Equal(t, lockHolder, string(data))
-				return true
-			}, 2*time.Second, 20*time.Microsecond)
+			t.Logf("Stopped PID: %d", pid)
+			t.Logf("endpoint: %s", endpoint)
+			checkLockHolder(t, lockHolder, endpoint)
 		}
 	}
+
+	unlockRequest(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
 }
