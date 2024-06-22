@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/peng225/starfish/internal/agent"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -32,74 +31,79 @@ func readConfig(t *testing.T, fileName string) *config {
 	return &c
 }
 
-// TODO: "Eventually" is needed for PUT requests, too.
+func checkLockHolder(t *testing.T, lockHolder int, server string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(server + "/lock")
+		if err != nil {
+			t.Logf("Failed to get the lock holder. err: %s", err)
+			return false
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
+			return false
+		}
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return strconv.Itoa(lockHolder) == string(data)
+	}, 20*time.Second, 2*time.Second)
+}
+
+func lockRequest(t *testing.T, lockHolder int, server string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		req, err := http.NewRequest(http.MethodPut,
+			server+"/lock",
+			bytes.NewBuffer([]byte(strconv.Itoa(lockHolder))))
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Logf("Lock request failed. err: %s", err)
+			return false
+		}
+		return resp.StatusCode == http.StatusOK
+	}, 20*time.Second, 2*time.Second)
+}
+
+func unlockRequest(t *testing.T, lockHolder int, server string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		req, err := http.NewRequest(http.MethodPut,
+			server+"/unlock",
+			bytes.NewBuffer([]byte(strconv.Itoa(lockHolder))))
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Logf("Unlock request failed. err: %s", err)
+			return false
+		}
+		return resp.StatusCode == http.StatusOK
+	}, 20*time.Second, 2*time.Second)
+}
+
 func TestLockAndUnlock(t *testing.T) {
 	c := readConfig(t, "../config.yaml")
 
 	// Check the initial status.
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
-		require.NoError(t, err)
-		if resp.StatusCode != http.StatusOK {
-			return false
-		}
-		defer resp.Body.Close()
-		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
-		return true
-	}, 20*time.Second, 2*time.Second)
+	checkLockHolder(t, int(agent.InvalidAgentID), c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
 
 	// Lock and check.
-	lockHolder1 := strconv.Itoa(1)
-	req, err := http.NewRequest(http.MethodPut,
-		c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/lock",
-		bytes.NewBuffer([]byte(lockHolder1)))
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
-		require.NoError(t, err)
-		if resp.StatusCode != http.StatusOK {
-			return false
-		}
-		defer resp.Body.Close()
-		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, lockHolder1, string(data))
-		return true
-	}, 20*time.Second, 2*time.Second)
+	lockHolder1 := 1
+	lockRequest(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	checkLockHolder(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
 
 	// Another client try to lock, but fails.
-	lockHolder2 := strconv.Itoa(2)
-	req, err = http.NewRequest(http.MethodPut,
+	lockHolder2 := 2
+	req, err := http.NewRequest(http.MethodPut,
 		c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/lock",
-		bytes.NewBuffer([]byte(lockHolder2)))
+		bytes.NewBuffer([]byte(strconv.Itoa(lockHolder2))))
 	require.NoError(t, err)
-	resp, err = http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusConflict, resp.StatusCode)
 
 	// Unlock and check.
-	req, err = http.NewRequest(http.MethodPut,
-		c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/unlock",
-		bytes.NewBuffer([]byte(lockHolder1)))
-	require.NoError(t, err)
-	resp, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
-		require.NoError(t, err)
-		if resp.StatusCode != http.StatusOK {
-			return false
-		}
-		defer resp.Body.Close()
-		data, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, strconv.Itoa(int(agent.InvalidLockHolderID)), string(data))
-		return true
-	}, 20*time.Second, 2*time.Second)
+	unlockRequest(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	checkLockHolder(t, int(agent.InvalidLockHolderID), c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
 }

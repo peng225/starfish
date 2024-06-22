@@ -1,17 +1,9 @@
 package test
 
 import (
-	"bytes"
-	"io"
 	"math/rand"
-	"net/http"
-	"strconv"
 	"sync"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStress(t *testing.T) {
@@ -23,41 +15,10 @@ func TestStress(t *testing.T) {
 	for i := 0; i < clientCount; i++ {
 		go func(clientID int) {
 			defer wg.Done()
-			// Lock and check.
-			lockHolder := strconv.Itoa(clientID)
-			require.Eventually(t, func() bool {
-				req, err := http.NewRequest(http.MethodPut,
-					c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/lock",
-					bytes.NewBuffer([]byte(lockHolder)))
-				require.NoError(t, err)
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
-				return resp.StatusCode == http.StatusOK
-			}, 20*time.Second, 2*time.Second)
-
-			require.Eventually(t, func() bool {
-				resp, err := http.Get(c.WebEndpoints[rand.Intn(len(c.WebEndpoints))] + "/lock")
-				require.NoError(t, err)
-				if resp.StatusCode != http.StatusOK {
-					return false
-				}
-				defer resp.Body.Close()
-				data, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				assert.Equal(t, lockHolder, string(data))
-				return true
-			}, 20*time.Second, 2*time.Second)
-
-			// Unlock.
-			require.Eventually(t, func() bool {
-				req, err := http.NewRequest(http.MethodPut,
-					c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/unlock",
-					bytes.NewBuffer([]byte(lockHolder)))
-				require.NoError(t, err)
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
-				return http.StatusOK == resp.StatusCode
-			}, 20*time.Second, 2*time.Second)
+			// Lock, check and unlock.
+			lockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+			checkLockHolder(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+			unlockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
 		}(i)
 	}
 	wg.Wait()
