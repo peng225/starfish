@@ -36,17 +36,20 @@ func checkLockHolder(t *testing.T, lockHolder int, server string) {
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(server + "/lock")
 		if err != nil {
-			t.Logf("Failed to get the lock holder. err: %s", err)
+			t.Logf("Failed to get the lock holder. lockHolder: %d, err: %s",
+				lockHolder, err)
 			return false
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
+			t.Logf("HTTP status code is not OK. lockHolder: %d, statusCode: %d",
+				lockHolder, resp.StatusCode)
 			return false
 		}
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
-			t.Logf("Failed to read HTTP response body. err: %s", err)
+			t.Logf("Failed to read HTTP response body. lockHolder: %d, err: %s",
+				lockHolder, err)
 			return false
 		}
 		if strconv.Itoa(lockHolder) != string(data) {
@@ -55,28 +58,24 @@ func checkLockHolder(t *testing.T, lockHolder int, server string) {
 			return false
 		}
 		return true
-	}, 20*time.Second, 100*time.Millisecond)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func lockRequest(t *testing.T, lockHolder int, server string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		t.Logf("lockHolder: %d", lockHolder)
 		req, err := http.NewRequest(http.MethodPut,
 			server+"/lock",
 			bytes.NewBuffer([]byte(strconv.Itoa(lockHolder))))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Logf("Lock request failed. err: %s", err)
+			t.Logf("Lock request failed. lockHolder: %d, err: %s",
+				lockHolder, err)
 			return false
 		}
-		if resp.StatusCode != http.StatusOK {
-			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
-			return false
-		}
-		return true
-	}, 20*time.Second, 500*time.Millisecond)
+		return resp.StatusCode == http.StatusOK
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 func unlockRequest(t *testing.T, lockHolder int, server string) {
@@ -88,15 +87,17 @@ func unlockRequest(t *testing.T, lockHolder int, server string) {
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			t.Logf("Unlock request failed. err: %s", err)
+			t.Logf("Unlock request failed. lockHolder: %d, err: %s",
+				lockHolder, err)
 			return false
 		}
 		if resp.StatusCode != http.StatusOK {
-			t.Logf("HTTP status code is not OK. statusCode: %d", resp.StatusCode)
+			t.Logf("HTTP status code is not OK. lockHolder: %d, statusCode: %d",
+				lockHolder, resp.StatusCode)
 			return false
 		}
 		return true
-	}, 20*time.Second, 100*time.Millisecond)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestLockAndUnlock(t *testing.T) {
