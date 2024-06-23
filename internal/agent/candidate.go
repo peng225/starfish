@@ -73,19 +73,20 @@ func election() error {
 	}
 
 	voteCount := 0
+	successfulVoteCount := 0
 	r := time.Duration(rand.Intn(electionTimeoutRandMaxMilliSec)) * time.Millisecond
 	for {
 		select {
 		case <-time.After(electionTimeout + r):
-			slog.Info("Election timeout!")
+			slog.Warn("Election timeout!")
 			err := errors.New("election timeout")
 			cancel(err)
 			return err
 		case res := <-voteResult:
 			if res {
-				voteCount++
+				successfulVoteCount++
 				slog.Info("Got a vote.")
-				if voteCount > len(grpcEndpoints)/2 {
+				if successfulVoteCount > len(grpcEndpoints)/2 {
 					err := transitionToLeader()
 					if err != nil {
 						slog.Error("Failed to promote to the leader.",
@@ -94,6 +95,11 @@ func election() error {
 					}
 					return nil
 				}
+			}
+			voteCount++
+			if voteCount == len(grpcEndpoints) {
+				slog.Warn("Could not get enough votes.")
+				return errors.New("not enough votes")
 			}
 		}
 	}
