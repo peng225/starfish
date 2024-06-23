@@ -19,11 +19,11 @@ const (
 	Candidate
 	Leader
 
-	InvalidLockHolderID       int32 = -1
-	InvalidAgentID            int32 = -1
-	NoopAgentID               int32 = -2
-	electionTimeout                 = 2 * time.Second
-	electionTimeoutRandMaxSec       = 5
+	InvalidLockHolderID            int32 = -1
+	InvalidAgentID                 int32 = -1
+	NoopAgentID                    int32 = -2
+	electionTimeout                      = 2 * time.Second
+	electionTimeoutRandMaxMilliSec       = 3000
 )
 
 type StateMachine struct {

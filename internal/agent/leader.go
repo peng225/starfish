@@ -23,7 +23,8 @@ type sendLogRequest struct {
 }
 
 const (
-	queueLength = 100000
+	queueLength     = 100000
+	heartBeatPeriod = 500 * time.Millisecond
 )
 
 var (
@@ -242,7 +243,7 @@ func broadcastHeartBeat() {
 }
 
 func heartBeatDaemon() {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(heartBeatPeriod)
 	for {
 		<-ticker.C
 		if vstate.role != Leader {
