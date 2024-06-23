@@ -23,7 +23,8 @@ type sendLogRequest struct {
 }
 
 const (
-	queueLength = 100000
+	queueLength     = 100000
+	heartBeatPeriod = 500 * time.Millisecond
 )
 
 var (
@@ -120,7 +121,7 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 			return DemotedToFollower
 		}
 		if endIndex < vlstate.nextIndex[destID] {
-			slog.Info("nextIndex found to be larger than endIndex.",
+			slog.Warn("nextIndex found to be larger than endIndex. Maybe demoted to a follower.",
 				slog.Int("dest", int(destID)),
 				slog.Int64("endIndex", endIndex),
 				slog.Int64("nextIndex", vlstate.nextIndex[destID]))
@@ -242,7 +243,7 @@ func broadcastHeartBeat() {
 }
 
 func heartBeatDaemon() {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(heartBeatPeriod)
 	for {
 		<-ticker.C
 		if vstate.role != Leader {
