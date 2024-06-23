@@ -13,7 +13,7 @@ func checkElectionTimeout() {
 	for {
 		<-ticker.C
 		if time.Since(electionTimeoutBase) > electionTimeout+r {
-			slog.Info("Election timeout detected.")
+			slog.Warn("Election timeout detected.")
 			transitionToCandidate()
 			go electionWithRetry()
 			break

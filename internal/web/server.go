@@ -34,7 +34,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
-			slog.Warn("I am not a leader.",
+			slog.Debug("I am not a leader.",
 				slog.Int("leaderID", int(lid)))
 			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
 		}
@@ -114,7 +114,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Retry-After", "1")
 			w.WriteHeader(http.StatusServiceUnavailable)
 		} else {
-			slog.Warn("I am not a leader.",
+			slog.Debug("I am not a leader.",
 				slog.Int("leaderID", int(lid)))
 			http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
 		}

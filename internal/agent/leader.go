@@ -121,7 +121,7 @@ func sendLogWithRetry(ctx context.Context, cancel context.CancelCauseFunc,
 			return DemotedToFollower
 		}
 		if endIndex < vlstate.nextIndex[destID] {
-			slog.Info("nextIndex found to be larger than endIndex.",
+			slog.Warn("nextIndex found to be larger than endIndex. Maybe demoted to a follower.",
 				slog.Int("dest", int(destID)),
 				slog.Int64("endIndex", endIndex),
 				slog.Int64("nextIndex", vlstate.nextIndex[destID]))
