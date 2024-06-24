@@ -99,6 +99,7 @@ func election() error {
 			voteCount++
 			if voteCount == len(grpcEndpoints) {
 				slog.Warn("Could not get enough votes.")
+				time.Sleep(r / 2)
 				return errors.New("not enough votes")
 			}
 		}
