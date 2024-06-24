@@ -16,9 +16,9 @@ func TestStress(t *testing.T) {
 		go func(clientID int) {
 			defer wg.Done()
 			// Lock, check and unlock.
-			lockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-			checkLockHolder(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-			unlockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+			lockRequest(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
+			checkLockHolder(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
+			unlockRequest(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
 		}(i)
 	}
 	wg.Wait()

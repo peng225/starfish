@@ -17,8 +17,8 @@ import (
 
 // TODO: duplicated in main.go
 type config struct {
-	WebEndpoints  []string `yaml:"webEndpoints"`
-	GRPCEndpoints []string `yaml:"grpcEndpoints"`
+	WebServers   []string `yaml:"webServers"`
+	GRPCServerss []string `yaml:"grpcServers"`
 }
 
 func readConfig(t *testing.T, fileName string) *config {
@@ -104,17 +104,17 @@ func TestLockAndUnlock(t *testing.T) {
 	c := readConfig(t, "../config.yaml")
 
 	// Check the initial status.
-	checkLockHolder(t, int(agent.InvalidAgentID), c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	checkLockHolder(t, int(agent.InvalidAgentID), c.WebServers[rand.Intn(len(c.WebServers))])
 
 	// Lock and check.
 	lockHolder1 := 1
-	lockRequest(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-	checkLockHolder(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	lockRequest(t, lockHolder1, c.WebServers[rand.Intn(len(c.WebServers))])
+	checkLockHolder(t, lockHolder1, c.WebServers[rand.Intn(len(c.WebServers))])
 
 	// Another client try to lock, but fails.
 	lockHolder2 := 2
 	req, err := http.NewRequest(http.MethodPut,
-		c.WebEndpoints[rand.Intn(len(c.WebEndpoints))]+"/lock",
+		c.WebServers[rand.Intn(len(c.WebServers))]+"/lock",
 		bytes.NewBuffer([]byte(strconv.Itoa(lockHolder2))))
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
@@ -122,6 +122,6 @@ func TestLockAndUnlock(t *testing.T) {
 	require.Equal(t, http.StatusConflict, resp.StatusCode)
 
 	// Unlock and check.
-	unlockRequest(t, lockHolder1, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-	checkLockHolder(t, int(agent.InvalidLockHolderID), c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	unlockRequest(t, lockHolder1, c.WebServers[rand.Intn(len(c.WebServers))])
+	checkLockHolder(t, int(agent.InvalidLockHolderID), c.WebServers[rand.Intn(len(c.WebServers))])
 }
