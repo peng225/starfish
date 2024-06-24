@@ -93,8 +93,9 @@ func Init(id int32, ge []string, ps PersistentStore) {
 	dedupLogger = slog.New(deduplog.NewDedupHandler(context.Background(),
 		slog.Default().Handler(),
 		&deduplog.HandlerOptions{
-			HistoryRetentionPeriod: 2 * time.Second,
+			HistoryRetentionPeriod: 5 * time.Second,
 			MaxHistoryCount:        deduplog.DefaultMaxHistoryCount,
+			DedupLogLevel:          slog.LevelError,
 		}))
 
 	initLeader()
