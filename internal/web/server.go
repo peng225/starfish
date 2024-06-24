@@ -146,13 +146,15 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	unlockRequestedID, err := strconv.ParseInt(string(body), 10, 32)
 	if err != nil {
+		slog.Error("Failed to parse the request body.",
+			slog.String("body", string(body)))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	lockHandlerID := agent.LockHolderID()
 	if unlockRequestedID < 0 {
-		slog.Error(fmt.Sprintf("Current lock holder's ID is %d, but unlock requested for ID %d.",
-			lockHandlerID, unlockRequestedID))
+		slog.Error("ID should not be a negative number.",
+			slog.Int("unlockRequestedID", int(unlockRequestedID)))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
