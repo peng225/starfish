@@ -1,8 +1,8 @@
-webEndpoints:
+webServers:
 - "http://localhost:8080"
 - "http://localhost:8081"
 - "http://localhost:8082"
-grpcEndpoints:
+grpcServers:
 - "localhost:10080"
 - "localhost:10081"
 - "localhost:10082"

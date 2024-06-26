@@ -14,8 +14,8 @@ func TestAllAgentFailure(t *testing.T) {
 	c := readConfig(t, "../config.yaml")
 
 	lockHolder := 1
-	lockRequest(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-	checkLockHolder(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	lockRequest(t, lockHolder, c.WebServers[rand.Intn(len(c.WebServers))])
+	checkLockHolder(t, lockHolder, c.WebServers[rand.Intn(len(c.WebServers))])
 
 	pids := getAgentPIDs(t)
 
@@ -34,10 +34,10 @@ func TestAllAgentFailure(t *testing.T) {
 	err := cmd.Run()
 	require.NoError(t, err)
 
-	for _, endpoint := range c.WebEndpoints {
-		t.Logf("endpoint: %s", endpoint)
-		checkLockHolder(t, lockHolder, endpoint)
+	for _, server := range c.WebServers {
+		t.Logf("server: %s", server)
+		checkLockHolder(t, lockHolder, server)
 	}
 
-	unlockRequest(t, lockHolder, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+	unlockRequest(t, lockHolder, c.WebServers[rand.Intn(len(c.WebServers))])
 }

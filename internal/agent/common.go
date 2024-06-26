@@ -49,8 +49,8 @@ var (
 	pstore PersistentStore
 	vstate VolatileState
 
-	grpcEndpoints []string
-	rpcClients    []sfrpc.RaftClient
+	grpcServers []string
+	rpcClients  []sfrpc.RaftClient
 
 	notifyLogApply chan struct{}
 	dedupLogger    *slog.Logger
@@ -72,12 +72,12 @@ func init() {
 
 func Init(id int32, ge []string, ps PersistentStore) {
 	vstate.id = id
-	grpcEndpoints = ge
+	grpcServers = ge
 
 	pstore = ps
 
 	// gRPC client setup.
-	for _, addr := range grpcEndpoints {
+	for _, addr := range grpcServers {
 		conn, err := grpc.NewClient(addr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
@@ -101,7 +101,7 @@ func Init(id int32, ge []string, ps PersistentStore) {
 	initLeader()
 
 	// Start daemons.
-	for i := range grpcEndpoints {
+	for i := range grpcServers {
 		i := i
 		if int32(i) == vstate.id {
 			continue

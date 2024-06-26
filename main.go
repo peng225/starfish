@@ -19,15 +19,15 @@ import (
 )
 
 type config struct {
-	WebEndpoints  []string `yaml:"webEndpoints"`
-	GRPCEndpoints []string `yaml:"grpcEndpoints"`
+	WebServers  []string `yaml:"webServers"`
+	GRPCServers []string `yaml:"grpcServers"`
 }
 
-func getPort(endpoint string) int {
-	tokens := strings.Split(endpoint, ":")
+func getPort(server string) int {
+	tokens := strings.Split(server, ":")
 	if len(tokens) != 2 && len(tokens) != 3 {
-		slog.Error("Invalid endpoint format.",
-			slog.String("endpoint", endpoint))
+		slog.Error("Invalid server format.",
+			slog.String("server", server))
 		os.Exit(1)
 	}
 	port, err := strconv.Atoi(tokens[len(tokens)-1])
@@ -76,18 +76,18 @@ func main() {
 	}
 	pstoreFileFullPath := path.Join(pstoreDir, fmt.Sprintf("filestore-%d.bin", id))
 	fs := store.MustNewFileStore(pstoreFileFullPath)
-	agent.Init(int32(id), c.GRPCEndpoints, fs)
+	agent.Init(int32(id), c.GRPCServers, fs)
 
 	// Start gRPC server.
-	grpcPort := getPort(c.GRPCEndpoints[id])
+	grpcPort := getPort(c.GRPCServers[id])
 	go agent.StartRPCServer(grpcPort)
 
-	web.Init(c.WebEndpoints)
+	web.Init(c.WebServers)
 
 	// Start web server.
 	http.HandleFunc("/lock", web.LockHandler)
 	http.HandleFunc("/unlock", web.UnlockHandler)
-	webPort := getPort(c.WebEndpoints[id])
+	webPort := getPort(c.WebServers[id])
 	err = http.ListenAndServe(":"+strconv.Itoa(webPort), nil)
 	if err != nil {
 		slog.Error("ListenAndServe failed.",

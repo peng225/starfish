@@ -33,9 +33,9 @@ func election() error {
 	pstore.PutCurrentTerm(pstore.CurrentTerm() + 1)
 	slog.Info("Updated the current term.",
 		slog.Int64("term", pstore.CurrentTerm()))
-	voteResult := make(chan bool, len(grpcEndpoints))
+	voteResult := make(chan bool, len(grpcServers))
 	ctx, cancel := context.WithCancelCause(context.Background())
-	for i := range grpcEndpoints {
+	for i := range grpcServers {
 		i := i
 		go func() {
 			if i == int(vstate.id) {
@@ -54,14 +54,14 @@ func election() error {
 			})
 			if err != nil {
 				slog.Error("RequestVote RPC failed.",
-					slog.String("dest", grpcEndpoints[i]),
+					slog.String("dest", grpcServers[i]),
 					slog.String("err", err.Error()))
 				voteResult <- false
 				return
 			}
 			if reply.Term > pstore.CurrentTerm() {
 				slog.Info("Found larger term in the response of RequestVote RPC.",
-					slog.String("dest", grpcEndpoints[i]),
+					slog.String("dest", grpcServers[i]),
 					slog.Int64("term", pstore.CurrentTerm()),
 					slog.Int64("responseTerm", reply.Term))
 				cancel(DemotedToFollower)
@@ -86,7 +86,7 @@ func election() error {
 			if res {
 				successfulVoteCount++
 				slog.Info("Got a vote.")
-				if successfulVoteCount > len(grpcEndpoints)/2 {
+				if successfulVoteCount > len(grpcServers)/2 {
 					err := transitionToLeader()
 					if err != nil {
 						slog.Error("Failed to promote to the leader.",
@@ -97,7 +97,7 @@ func election() error {
 				}
 			}
 			voteCount++
-			if voteCount == len(grpcEndpoints) {
+			if voteCount == len(grpcServers) {
 				slog.Warn("Could not get enough votes.")
 				time.Sleep(r / 2)
 				return errors.New("not enough votes")

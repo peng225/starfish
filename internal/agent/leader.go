@@ -42,11 +42,11 @@ func init() {
 
 func initLeader() {
 	vlstate = VolatileLeaderState{
-		nextIndex:  make([]int64, len(grpcEndpoints)),
-		matchIndex: make([]int64, len(grpcEndpoints)),
+		nextIndex:  make([]int64, len(grpcServers)),
+		matchIndex: make([]int64, len(grpcServers)),
 	}
 
-	sendLogQueues = make([]chan sendLogRequest, len(grpcEndpoints))
+	sendLogQueues = make([]chan sendLogRequest, len(grpcServers))
 	for i := 0; i < len(sendLogQueues); i++ {
 		sendLogQueues[i] = make(chan sendLogRequest, queueLength)
 	}
@@ -68,7 +68,7 @@ func AppendLog(logEntry *LogEntry) error {
 	pstore.AppendLog(logEntry)
 
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
-	for i := 0; i < len(grpcEndpoints)/2; i++ {
+	for i := 0; i < len(grpcServers)/2; i++ {
 		err := <-errCh
 		if err != nil {
 			return err
@@ -80,9 +80,9 @@ func AppendLog(logEntry *LogEntry) error {
 }
 
 func broadcastToLogSenderDaemons(endIndex int64) chan error {
-	errCh := make(chan error, len(grpcEndpoints)-1)
+	errCh := make(chan error, len(grpcServers)-1)
 	ctx, cancel := context.WithCancelCause(context.Background())
-	for i := range grpcEndpoints {
+	for i := range grpcServers {
 		if i == int(vstate.id) {
 			continue
 		}
@@ -209,13 +209,13 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	})
 	if err != nil {
 		dedupLogger.Error("AppendEntries RPC failed.",
-			slog.String("dest", grpcEndpoints[destID]),
+			slog.String("dest", grpcServers[destID]),
 			slog.String("err", err.Error()))
 		return err
 	}
 	if !reply.Success {
 		dedupLogger.Error("AppendEntries RPC failed.",
-			slog.String("dest", grpcEndpoints[destID]),
+			slog.String("dest", grpcServers[destID]),
 			slog.Int64("replyTerm", reply.Term),
 			slog.Int64("term", cTerm))
 		if reply.Term > cTerm {
@@ -229,7 +229,7 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 
 func broadcastHeartBeat() {
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
-	for i := 0; i < len(grpcEndpoints)/2; i++ {
+	for i := 0; i < len(grpcServers)/2; i++ {
 		err := <-errCh
 		if err != nil {
 			if errors.Is(err, DemotedToFollower) {

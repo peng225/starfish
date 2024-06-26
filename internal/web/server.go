@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	webEndpoints []string
+	webServers []string
 )
 
 func Init(we []string) {
-	webEndpoints = we
+	webServers = we
 }
 
 func LockHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +36,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			slog.Debug("I am not a leader.",
 				slog.Int("leaderID", int(lid)))
-			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, webServers[lid]+"/lock", http.StatusTemporaryRedirect)
 		}
 		return
 	}
@@ -92,7 +92,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		err = agent.AppendLog(&logEntry)
 		if err != nil && errors.Is(err, agent.DemotedToFollower) {
 			lid := agent.LeaderID()
-			http.Redirect(w, r, webEndpoints[lid]+"/lock", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, webServers[lid]+"/lock", http.StatusTemporaryRedirect)
 			return
 		}
 	default:
@@ -116,7 +116,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			slog.Debug("I am not a leader.",
 				slog.Int("leaderID", int(lid)))
-			http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, webServers[lid]+"/unlock", http.StatusTemporaryRedirect)
 		}
 		return
 	}
@@ -146,13 +146,15 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	unlockRequestedID, err := strconv.ParseInt(string(body), 10, 32)
 	if err != nil {
+		slog.Error("Failed to parse the request body.",
+			slog.String("body", string(body)))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	lockHandlerID := agent.LockHolderID()
 	if unlockRequestedID < 0 {
-		slog.Error(fmt.Sprintf("Current lock holder's ID is %d, but unlock requested for ID %d.",
-			lockHandlerID, unlockRequestedID))
+		slog.Error("ID should not be a negative number.",
+			slog.Int("unlockRequestedID", int(unlockRequestedID)))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -174,7 +176,7 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	err = agent.AppendLog(&logEntry)
 	if err != nil && errors.Is(err, agent.DemotedToFollower) {
 		lid := agent.LeaderID()
-		http.Redirect(w, r, webEndpoints[lid]+"/unlock", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, webServers[lid]+"/unlock", http.StatusTemporaryRedirect)
 		return
 	}
 }

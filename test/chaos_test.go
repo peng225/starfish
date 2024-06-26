@@ -26,9 +26,9 @@ func runClinetsForever(t *testing.T, done chan struct{}) {
 		for i := 0; i < clientCount; i++ {
 			go func(clientID int) {
 				defer wg.Done()
-				lockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-				checkLockHolder(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
-				unlockRequest(t, clientID, c.WebEndpoints[rand.Intn(len(c.WebEndpoints))])
+				lockRequest(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
+				checkLockHolder(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
+				unlockRequest(t, clientID, c.WebServers[rand.Intn(len(c.WebServers))])
 			}(i)
 		}
 		wg.Wait()
