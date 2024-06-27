@@ -62,6 +62,7 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			n, err := w.Write(lhIDByte[written:])
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			written += n
 		}
