@@ -65,6 +65,14 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			written += n
 		}
+		err := agent.BroadcastHeartBeat()
+		if err != nil {
+			slog.Error("Heartbeat failed.",
+				slog.String("err", err.Error()))
+			w.Header().Add("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 	case http.MethodPut:
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
