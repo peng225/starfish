@@ -61,13 +61,26 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		for len(lhIDByte) != written {
 			n, err := w.Write(lhIDByte[written:])
 			if err != nil {
+				slog.Error("Write failed.",
+					slog.String("err", err.Error()))
 				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			written += n
+		}
+		err := agent.BroadcastHeartBeat()
+		if err != nil {
+			slog.Error("Heartbeat failed.",
+				slog.String("err", err.Error()))
+			w.Header().Add("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
 		}
 	case http.MethodPut:
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			slog.Error("Failed to read body.",
+				slog.String("err", err.Error()))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -75,14 +88,21 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 
 		lockRequestedID, err := strconv.ParseInt(string(body), 10, 32)
 		if err != nil {
+			slog.Error("Failed to parse body.",
+				slog.String("body", string(body)),
+				slog.String("err", err.Error()))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if lockRequestedID == int64(lockHandlerID) {
 			// Already has a lock.
+			slog.Info("Lock already acquired.",
+				slog.Int64("lockRequestedID", lockRequestedID))
 			break
 		}
 		if 0 <= lockHandlerID {
+			slog.Debug("Lock conflict.",
+				slog.Int("lockHandlerID", int(lockHandlerID)))
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -92,10 +112,14 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		err = agent.AppendLog(&logEntry)
 		if err != nil && errors.Is(err, agent.DemotedToFollower) {
 			lid := agent.LeaderID()
+			slog.Debug("I am not a leader.",
+				slog.Int("leaderID", int(lid)))
 			http.Redirect(w, r, webServers[lid]+"/lock", http.StatusTemporaryRedirect)
 			return
 		}
 	default:
+		slog.Error("Method not allowed.",
+			slog.String("method", r.Method))
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -122,6 +146,8 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method != http.MethodPut {
+		slog.Error("Method not allowed.",
+			slog.String("method", r.Method))
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -140,6 +166,8 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		slog.Error("Failed to read body.",
+			slog.String("err", err.Error()))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -176,6 +204,8 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 	err = agent.AppendLog(&logEntry)
 	if err != nil && errors.Is(err, agent.DemotedToFollower) {
 		lid := agent.LeaderID()
+		slog.Debug("I am not a leader.",
+			slog.Int("leaderID", int(lid)))
 		http.Redirect(w, r, webServers[lid]+"/unlock", http.StatusTemporaryRedirect)
 		return
 	}

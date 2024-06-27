@@ -227,19 +227,15 @@ func sendLog(ctx context.Context, destID int32, entryCount int64) error {
 	return nil
 }
 
-func broadcastHeartBeat() {
+func BroadcastHeartBeat() error {
 	errCh := broadcastToLogSenderDaemons(pstore.LogSize())
 	for i := 0; i < len(grpcServers)/2; i++ {
 		err := <-errCh
 		if err != nil {
-			if errors.Is(err, DemotedToFollower) {
-				break
-			}
-			slog.Error("Unexpected heartbeat error.",
-				slog.String("err", err.Error()))
-			os.Exit(1)
+			return err
 		}
 	}
+	return nil
 }
 
 func heartBeatDaemon() {
@@ -249,6 +245,10 @@ func heartBeatDaemon() {
 		if vstate.role != Leader {
 			break
 		}
-		broadcastHeartBeat()
+		err := BroadcastHeartBeat()
+		if err != nil {
+			slog.Error("Heartbeat failed.",
+				slog.String("err", err.Error()))
+		}
 	}
 }
