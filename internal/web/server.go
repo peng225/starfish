@@ -179,22 +179,20 @@ func UnlockHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	lockHandlerID := agent.LockHolderID()
 	if unlockRequestedID < 0 {
 		slog.Error("ID should not be a negative number.",
 			slog.Int("unlockRequestedID", int(unlockRequestedID)))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	lockHandlerID := agent.LockHolderID()
+	if lockHandlerID == agent.InvalidAgentID {
+		slog.Info("No one holds lock.")
+		return
+	}
 	if unlockRequestedID != int64(lockHandlerID) {
 		slog.Error(fmt.Sprintf("Current lock holder's ID is %d, but unlock requested for ID %d.",
 			lockHandlerID, unlockRequestedID))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if unlockRequestedID < 0 {
-		slog.Error("Unlock requested for an invalid ID.",
-			slog.Int("ID", int(unlockRequestedID)))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
