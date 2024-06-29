@@ -22,7 +22,7 @@ test: $(STARFISH)
 
 .PHONY: e2e-test
 e2e-test: $(STARFISH)
-	go test -v -timeout 3m ./test/...
+	go test -v -timeout 3m -failfast ./test/...
 
 .PHONY: clean
 clean:
