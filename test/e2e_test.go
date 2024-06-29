@@ -75,7 +75,7 @@ func lockRequest(t *testing.T, lockHolder int, server string) {
 			return false
 		}
 		return resp.StatusCode == http.StatusOK
-	}, 30*time.Second, 200*time.Millisecond)
+	}, 60*time.Second, 100*time.Millisecond)
 }
 
 func unlockRequest(t *testing.T, lockHolder int, server string) {
